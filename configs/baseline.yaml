@@ -1,0 +1,93 @@
+# Baseline Configuration for Statistical Arbitrage Pairs Trading Research
+
+universe:
+  # Selected on economic rationale (large-cap S&P 500 constituents on 2018-01-01, continuously listed, homogeneous business models)
+  banks:
+    # Highly liquid US money-center and regional commercial banks sharing macroeconomic credit and rate drivers
+    - JPM
+    - BAC
+    - C
+    - WFC
+    - USB
+    - PNC
+  energy:
+    # Integrated oil & gas and E&P firms with shared exposure to WTI crude and natural gas commodity cycles
+    - XOM
+    - CVX
+    - COP
+    - EOG
+    - OXY
+    - DVN
+  staples:
+    # Defensive consumer packaged goods manufacturers with resilient cash flows and comparable margin structures
+    - KO
+    - PEP
+    - PG
+    - CL
+    - KMB
+    - MDLZ
+
+dates:
+  # Full historical span acquired once to guarantee consistent corporate action adjustments
+  download_start: "2018-01-01"
+  download_end: "2024-12-31"
+  # In-sample calibration period (4 years) for exploratory data analysis, cointegration screening, and hedge estimation
+  train_start: "2018-01-01"
+  train_end: "2021-12-31"
+  # Clean validation window (1 year) to inspect parameter stability and execution behavior without touching test set
+  validation_start: "2022-01-01"
+  validation_end: "2022-12-31"
+  # Out-of-sample test window (2 years) reserved for final one-shot evaluation on Day 10
+  test_start: "2023-01-01"
+  test_end: "2024-12-31"
+  # Enforces strict isolation of the out-of-sample test window prior to formal freeze on Day 10
+  unlock_test: false
+
+screening:
+  # Restricts candidate pairs to same sector to ensure fundamental economic linkage and prevent spurious cointegration
+  within_sector_only: true
+  # Trend specification for Engle-Granger augmented Dickey-Fuller residual unit root test ('c' includes a constant term)
+  trend: "c"
+  # Takes max p-value over both regression orderings (A on B and B on A) to guard against normalization asymmetry
+  bidirectional_max_pvalue: true
+  # Significance level for Holm-Bonferroni step-down correction to control family-wise error rate across multiple hypotheses
+  alpha: 0.05
+  # Minimum mean-reversion half-life (in trading days) from AR(1) spread regression to filter out micro-noise
+  min_half_life_days: 1.0
+  # Maximum mean-reversion half-life (in trading days) to ensure positions resolve within practical holding windows
+  max_half_life_days: 60.0
+  # Designates the alphabetically first ticker as dependent leg A to establish deterministic, reproducible ordering
+  dependent_leg_policy: "alphabetical_first"
+
+signals:
+  # Statistical divergence threshold (in standard deviations) required to enter a mean-reverting spread position
+  entry_z: 2.0
+  # Mean-reversion exit threshold (in standard deviations) to realize convergence profit near equilibrium
+  exit_z: 0.5
+  # Maximum holding horizon in trading days to liquidate stagnant trades and mitigate structural break risk
+  max_hold_days: 30
+  # Optional stop-loss divergence threshold (null in baseline to avoid curve-fitting before diagnostics)
+  stop_z: null
+  # Normalizes spread using strictly frozen training-period mean and standard deviation to eliminate look-ahead bias
+  z_score_baseline: "training_fixed"
+
+execution:
+  # Simulates realistic delay by evaluating signals on close t and executing fills at close t+1
+  execution_lag: 1
+  # Broker commission cost per side per leg expressed in basis points of traded notional
+  commission_bps: 5.0
+  # Conservative market impact and bid-ask slippage cost per side per leg in basis points of traded notional
+  slippage_bps: 5.0
+  # Annualized cost of borrowing shares to maintain short equity positions, accrued daily (50 bps / 252)
+  borrow_bps_annual: 50.0
+
+capital:
+  # Total portfolio equity base allocated equally across all passing pairs at period start
+  initial_capital: 1000000.0
+  # Benchmark risk-free interest rate earned on unallocated cash reserves (conservative baseline assumption 0.0)
+  risk_free_rate: 0.0
+  # Standard number of active trading days per calendar year for equity return and volatility annualization
+  annualization: 252
+
+# Pseudo-random number generator seed to guarantee deterministic reproducibility across all stochastic procedures
+seed: 42

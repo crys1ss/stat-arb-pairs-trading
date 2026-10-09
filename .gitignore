@@ -1,0 +1,27 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Data cache and processed files (do not track raw or processed market data)
+data/raw/
+data/processed/
+
+# Notebook and test checkpoints
+.ipynb_checkpoints/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / OS metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
