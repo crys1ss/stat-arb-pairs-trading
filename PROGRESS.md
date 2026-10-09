@@ -1,21 +1,23 @@
 # Project Progress & Handoff Log
 
 ## Status
-- Day: 1 of 14
-- Current Phase: Repository scaffold, typed configuration, and working rules complete.
-- Test Status: All tests passing (`pytest -q`).
+- Day: 2 of 14
+- Current Phase: Data acquisition, local caching, and data quality validation complete.
+- Test Status: All tests passing (`pytest -q`, 14 passed).
 
 ## Decisions log
-- Pinned environment dependencies to verified local installation: `pandas==3.0.6`, `numpy==2.5.3`, `scipy==1.18.1`, `statsmodels==0.15.0`, `matplotlib==3.11.2`, `yfinance==1.7.0`, `pyyaml==6.0.2`, `pyarrow==26.0.0`, `pytest==9.1.1`.
-- Split original brief 2018–2022 window into train (2018–2021) and clean validation (2022) to enable parameter inspection while keeping test period (2023–2024) strictly locked via `unlock_test: false`.
-- Enforced `execution_lag >= 1` in typed config validator to programmatically disallow look-ahead bias.
+- Dependencies: Verified `yfinance==1.7.0` with `threads=False` to eliminate SQLite concurrency locks during caching.
+- Universe coverage: All 18 tickers retained with 100% full coverage (1,760 trading days, 2018-01-02 to 2024-12-30). Zero missing values.
+- Abnormal returns policy: Flagged 6 daily log returns > 25% (COP, CVX, DVN, EOG, OXY during March/June 2020 energy crash/rebound) into `reports/results/abnormal_returns.csv`. Unaltered per research protocol.
+- Strict isolation: `slice_period` raises `PermissionError` on 'test' period requests while `unlock_test: false`.
 
 ## Day log
-### Day 1: Repository Scaffold and Configuration
-- Implemented: Repository directory tree, `docs/BRIEF.md`, `docs/AGENT_RULES.md`, `configs/baseline.yaml`, `src/config.py` typed dataclasses and validators, `requirements.txt`, `.gitignore`, and stub modules.
-- Tested: `tests/test_config.py` verifying chronological date ordering, non-overlapping periods, threshold constraints (`exit_z < entry_z`), and execution lag bounds.
-- Remaining: Day 2 data acquisition, caching, and data-quality validation.
+### Day 2: Data Acquisition & Validation
+- Implemented: `src/data.py` (`download_prices`, `slice_period`), `src/validation.py` (pure validation checks, `build_clean_panel` with strictly no forward-filling), `scripts/fetch_data.py`, and updated `data/README.md`.
+- Tested: Handcrafted offline fixtures in `tests/test_data.py` (duplicates, NaN preservation, abnormal returns, calendar alignment, locked test period). Full suite: 14 passed.
+- Outputs generated: `data/processed/close.parquet` (1760x18), `data/raw/metadata.json`, `reports/results/data_quality.csv`.
+- Remaining: Day 3 exploratory analysis, order of integration tests (ADF/KPSS), and return statistics.
 
 ## Next
 - Next commands:
-  - Day 2 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then proceed with `src/data.py`, `src/validation.py`, and `scripts/fetch_data.py`.
+  - Day 3 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then run EDA and order of integration pipeline.
