@@ -1,23 +1,22 @@
 # Project Progress & Handoff Log
 
 ## Status
-- Day: 6 of 14
-- Current Phase: Causal signal generation state machine complete.
-- Test Status: All tests passing (`pytest -q`, 36 passed).
+- Day: 7 of 14
+- Current Phase: Single-pair backtest simulation engine complete.
+- Test Status: All tests passing (`pytest -q`, 44 passed).
 
 ## Decisions log
-- Execution contract: Explicitly documented in `src/signals.py` docstrings that signals evaluated at close t execute strictly at close t + execution_lag (lag >= 1) to eliminate look-ahead bias.
-- State invariants: Enforced zero re-entry on exit bars, zero overlapping positions, and hold-through-NaN behavior.
-- Causality proven: Verified that truncating input at bar t leaves all prior states strictly unchanged.
-- Period end exit: Implemented `close_at_end: bool = False` allowing explicit 'period_end' liquidation while preserving default truncation causality.
+- Fixed capital base convention: Evaluated daily return as net_pnl / capital across the backtest to maintain stationary risk exposure.
+- Execution lag contract: Decisions at close t fill at close t + execution_lag (assert lag >= 1) to eliminate look-ahead bias.
+- Explicit costs: Traded notional commissions + slippage charged per leg at entry and exit; short notional borrow cost accrued daily.
+- Period-end liquidation: Open positions at the final bar are force-closed with exit trade costs and exit_reason 'period_end'.
 
 ## Day log
-### Day 6: Signal Generation State Machine
-- Implemented: `src/signals.py` (`generate_signals`), `scripts/generate_pair_signals.py`, and `plot_signals_with_markers` in `src/plotting.py`.
-- Tested: `tests/test_signals.py` covering long/short entries, mean-reversion with zero crossing, max hold duration, no re-entry on exit, NaN handling, stop loss, truncation causality, and period-end exit. Full suite: 36 passed.
-- Outputs generated: 5 z-score trade marker figures in `reports/figures/` across train and validation windows.
-- Remaining: Day 7 single-pair backtest engine with transaction costs, slippage, and borrow fees.
+### Day 7: Single-Pair Backtest Engine
+- Implemented: `src/backtest.py` (`backtest_pair`, `compute_weights`, `BacktestResult`) outputting daily series (`gross_pnl`, `trade_cost`, `borrow_cost`, `net_pnl`, `return`) and detailed trade log table.
+- Tested: `tests/test_backtest.py` with hand-computed paths covering execution lag (t+1), exact hand-calculated P&L, single-charge trade costs, borrow accrual, zero-trade behavior, period-end force close, and lag-2 shift. Full suite: 44 passed.
+- Remaining: Day 8 multi-pair portfolio aggregation and performance metrics.
 
 ## Next
 - Next commands:
-  - Day 7 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then build `src/backtest.py` single-pair engine.
+  - Day 8 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then build multi-pair portfolio and risk/return metrics.
