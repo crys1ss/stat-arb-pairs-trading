@@ -156,3 +156,19 @@ def test_causality_invariant():
         np.testing.assert_array_equal(trunc_sig["entry_flag"].values, full_sig["entry_flag"].values[:t])
         np.testing.assert_array_equal(trunc_sig["exit_flag"].values, full_sig["exit_flag"].values[:t])
         np.testing.assert_array_equal(trunc_sig["days_held"].values, full_sig["days_held"].values[:t])
+
+
+def test_period_end_exit():
+    # Long entered at bar 0, position persists without mean reversion or max hold
+    z_seq = pd.Series([-2.1, -1.8, -1.7])
+    # With close_at_end=False, position remains held at the final bar
+    sig_hold = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=10, close_at_end=False)
+    assert sig_hold.loc[2, "state"] == 1
+    assert bool(sig_hold.loc[2, "exit_flag"]) is False
+
+    # With close_at_end=True, open position is liquidated on final bar with 'period_end'
+    sig_close = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=10, close_at_end=True)
+    assert bool(sig_close.loc[2, "exit_flag"]) is True
+    assert sig_close.loc[2, "exit_reason"] == "period_end"
+    assert sig_close.loc[2, "state"] == 0
+

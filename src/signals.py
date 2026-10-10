@@ -13,6 +13,7 @@ def generate_signals(
     exit_z: float,
     max_hold_days: int,
     stop_z: Optional[float] = None,
+    close_at_end: bool = False,
 ) -> pd.DataFrame:
     """Generate deterministic, causal pairs-trading signals via a state machine.
 
@@ -33,11 +34,13 @@ def generate_signals(
        - Max hold duration: exit when days_held >= max_hold_days.
        - Stop loss: exit when stop_z is provided and |z_t| >= stop_z.
        - A NaN z_t means the existing position is held unless max_hold is reached.
+       - Period end: forced exit at final bar if close_at_end=True.
     3. When holding short spread (state == -1):
        - Mean reversion: exit when z_t <= exit_z (covers convergence and crossing zero).
        - Max hold duration: exit when days_held >= max_hold_days.
        - Stop loss: exit when stop_z is provided and |z_t| >= stop_z.
        - A NaN z_t means the existing position is held unless max_hold is reached.
+       - Period end: forced exit at final bar if close_at_end=True.
     4. Sequencing invariants:
        - No re-entry on the same bar as an exit.
        - No overlapping positions.
@@ -55,6 +58,9 @@ def generate_signals(
         Maximum holding period in trading days before forced time-based exit.
     stop_z : Optional[float], default None
         Optional divergence stop-loss threshold in standard deviations.
+    close_at_end : bool, default False
+        Whether to liquidate open positions on the final bar with reason 'period_end'.
+        Default is False to strictly preserve truncation causality across arbitrary sub-periods.
 
     Returns
     -------
@@ -64,7 +70,7 @@ def generate_signals(
         - 'state': integer state (+1 long spread, -1 short spread, 0 flat)
         - 'entry_flag': bool, True on bars where a new position is initiated
         - 'exit_flag': bool, True on bars where an existing position is liquidated
-        - 'exit_reason': Optional[str] ('mean_revert', 'max_hold', 'stop', or None)
+        - 'exit_reason': Optional[str] ('mean_revert', 'max_hold', 'stop', 'period_end', or None)
         - 'days_held': int, count of trading days current position has been held
     """
     if isinstance(z, pd.Series):
@@ -138,11 +144,19 @@ def generate_signals(
                     exit_triggered = True
                     reason = "max_hold"
 
+                # Check period end if enabled
+                elif close_at_end and t == n - 1:
+                    exit_triggered = True
+                    reason = "period_end"
+
             else:
-                # NaN z while in position: hold unless max hold days elapsed
+                # NaN z while in position: hold unless max hold days elapsed or period end
                 if days_held >= max_hold_days:
                     exit_triggered = True
                     reason = "max_hold"
+                elif close_at_end and t == n - 1:
+                    exit_triggered = True
+                    reason = "period_end"
 
             if exit_triggered:
                 exit_flag_arr[t] = True
