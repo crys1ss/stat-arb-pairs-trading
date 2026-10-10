@@ -1,0 +1,6 @@
+pair,leg_a,leg_b,sector,alpha,beta,r_squared,res_mean_train,res_std_train,half_life_train,weight_a,weight_b,is_exploratory
+BAC_PNC,BAC,PNC,banks,-1.116556,0.928138,0.964,-0.0,0.03892,20.49,0.518635,-0.481365,True
+MDLZ_PG,MDLZ,PG,staples,0.741559,0.665193,0.9399,0.0,0.040961,21.64,0.600531,-0.399469,True
+MDLZ_PEP,MDLZ,PEP,staples,-0.974865,1.019173,0.9479,0.0,0.03815,20.49,0.495252,-0.504748,True
+COP_DVN,COP,DVN,energy,2.465923,0.460606,0.8665,0.0,0.085251,26.87,0.684647,-0.315353,True
+COP_CVX,COP,CVX,energy,-2.99754,1.546718,0.8404,0.0,0.093211,30.11,0.392662,-0.607338,True

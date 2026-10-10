@@ -1,23 +1,22 @@
 # Project Progress & Handoff Log
 
 ## Status
-- Day: 3 of 14
-- Current Phase: Exploratory data analysis, return distributions, and order-of-integration diagnostics complete.
-- Test Status: All tests passing (`pytest -q`, 19 passed).
+- Day: 5 of 14
+- Current Phase: Pair screening (Day 4) and hedge ratio estimation / spread construction (Day 5) complete.
+- Test Status: All tests passing (`pytest -q`, 28 passed).
 
 ## Decisions log
-- Pre-registered screening fallback: If zero pairs pass Holm at 0.05, the primary finding is that no pairs pass. Because the backtester still needs evaluating, the pipeline continues on an EXPLORATORY set: the 5 lowest raw p-value pairs that pass the half-life filter. Every downstream output for this set is labelled EXPLORATORY.
-- Integration verdict: 18 of 18 tickers are plausibly I(1) on training window (2018–2021). Zero tickers excluded. All 18 exhibited non-stationary log price levels (ADF p > 0.05) and stationary first differences (ADF p < 0.001, KPSS p > 0.05).
-- Heavy tails: Confirmed leptokurtic daily returns across all assets (excess kurtosis from 6.4 in XOM to 84.1 in OXY), justifying non-Gaussian risk modeling.
-- Isolated notebook: Created clean 8-cell `notebooks/exploratory_analysis.ipynb` containing zero calculation logic, purely consuming generated CSVs and figures.
+- Screening funnel: 45 candidate pairs tested; 3 passed raw Engle-Granger (p < 0.05); 0 passed Holm (p < 0.05); 27 passed half-life [1, 60] d. Primary finding: zero pairs statistically cointegrated after FWER correction.
+- Exploratory selection: Activated pre-registered fallback with top 5 lowest raw-p pairs passing half-life: BAC_PNC (p=0.0049), MDLZ_PG (p=0.0088), MDLZ_PEP (p=0.0316), COP_DVN (p=0.0531), COP_CVX (p=0.0903). Labelled EXPLORATORY.
+- Frozen parameters: Alpha, beta, training spread mean and std frozen from 2018–2021; zero refitting on validation/test data.
 
 ## Day log
-### Day 3: Exploratory Analysis & Order of Integration
-- Implemented: `src/stats_tests.py` (`adf_test`, `kpss_test`), `src/plotting.py` (normalized prices, log prices, correlation heatmap), `scripts/run_eda.py`, and `notebooks/exploratory_analysis.ipynb`.
-- Tested: `tests/test_stats_tests.py` verifying ADF unit root detection on seeded random walk, rejection on AR(1) phi=0.5, and graceful NaN handling. Full suite: 19 passed.
-- Outputs generated: `reports/results/return_stats.csv`, `reports/results/integration_tests.csv`, and 3 figures in `reports/figures/`.
-- Remaining: Day 4 candidate pair screening with Holm multiple testing correction on training data.
+### Days 4 & 5: Screening, Hedge Ratios, and Spread Construction
+- Implemented: `src/pairs.py` (screening, Engle-Granger, AR(1) half-life, Holm step-down, OLS hedge fitting, spread and z-score), `scripts/screen_pairs.py`, `scripts/build_spreads.py`, and `docs/METHODOLOGY.md`.
+- Tested: `tests/test_pairs.py` and `tests/test_spread.py` (known Holm vectors, cointegration vs random walk, AR(1) half-life, no-lookahead invariant). Full suite: 28 passed.
+- Outputs generated: `pair_screening.csv`, `selected_pairs.csv`, `hedge_params.csv`, `rolling_beta.csv`, and 11 pair/diagnostic figures in `reports/figures/`.
+- Remaining: Day 6 causal signal generation state machine.
 
 ## Next
 - Next commands:
-  - Day 4 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then execute Engle-Granger pair screening with Holm correction.
+  - Day 6 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then build `src/signals.py` state machine.
