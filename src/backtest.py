@@ -286,12 +286,12 @@ def backtest_pair(
                 "exit_price_b": exit_p_b,
                 "shares_a": curr_shares_a,
                 "shares_b": curr_shares_b,
-                "gross_pnl": round(curr_trade_gross, 6),
-                "trade_cost": round(curr_entry_cost + exit_cost, 6),
-                "borrow_cost": round(curr_trade_borrow, 6),
-                "costs": round(total_trade_costs, 6),
-                "net_pnl": round(net_trade_pnl, 6),
-                "return_on_capital": round(trade_ret, 8),
+                "gross_pnl": curr_trade_gross,
+                "trade_cost": curr_entry_cost + exit_cost,
+                "borrow_cost": curr_trade_borrow,
+                "costs": total_trade_costs,
+                "net_pnl": net_trade_pnl,
+                "return_on_capital": trade_ret,
                 "exit_reason": exit_reason_str,
             })
 

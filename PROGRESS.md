@@ -1,22 +1,23 @@
 # Project Progress & Handoff Log
 
 ## Status
-- Day: 7 of 14
-- Current Phase: Single-pair backtest simulation engine complete.
-- Test Status: All tests passing (`pytest -q`, 44 passed).
+- Day: 8 of 14
+- Current Phase: Multi-pair portfolio aggregation and accounting checks complete.
+- Test Status: All tests passing (`pytest -q`, 51 passed).
 
 ## Decisions log
-- Fixed capital base convention: Evaluated daily return as net_pnl / capital across the backtest to maintain stationary risk exposure.
-- Execution lag contract: Decisions at close t fill at close t + execution_lag (assert lag >= 1) to eliminate look-ahead bias.
-- Explicit costs: Traded notional commissions + slippage charged per leg at entry and exit; short notional borrow cost accrued daily.
-- Period-end liquidation: Open positions at the final bar are force-closed with exit trade costs and exit_reason 'period_end'.
+- Review of backtest.py: Audited for look-ahead, shift alignment, and cost double-counting. Removed premature round() in trade records to preserve exact float64 precision across accounting invariants.
+- Equal-weight capital split: Initial portfolio capital is allocated equally across selected pairs; idle cash earns 0.0 risk-free rate.
+- Compounding invariant: Defined return_t = pnl_t / equity_{t-1}, guaranteeing that compounding (1 + return_t) reproduces equity_t.
+- Period lock enforcement: Script run_backtest.py enforces PermissionError when accessing the locked test period.
 
 ## Day log
-### Day 7: Single-Pair Backtest Engine
-- Implemented: `src/backtest.py` (`backtest_pair`, `compute_weights`, `BacktestResult`) outputting daily series (`gross_pnl`, `trade_cost`, `borrow_cost`, `net_pnl`, `return`) and detailed trade log table.
-- Tested: `tests/test_backtest.py` with hand-computed paths covering execution lag (t+1), exact hand-calculated P&L, single-charge trade costs, borrow accrual, zero-trade behavior, period-end force close, and lag-2 shift. Full suite: 44 passed.
-- Remaining: Day 8 multi-pair portfolio aggregation and performance metrics.
+### Day 8: Portfolio Aggregation & Accounting Checks
+- Implemented: `src/portfolio.py` (`run_portfolio`, `compute_turnover`, `PortfolioResult`), `scripts/run_backtest.py`.
+- Generated: `train_daily.csv`, `train_trades.csv`, `validation_daily.csv`, `validation_trades.csv` in `reports/results/`.
+- Tested: `tests/test_portfolio.py` verifying 4 accounting invariants (tolerance 1e-8), turnover calculation, exposure bounds, and locked test period protection. Full suite: 51 passed.
+- Remaining: Day 9 portfolio performance metrics, tearsheet generation, and diagnostic reporting.
 
 ## Next
 - Next commands:
-  - Day 8 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then build multi-pair portfolio and risk/return metrics.
+  - Day 9 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then implement `src/metrics.py` and tearsheet reporting.
