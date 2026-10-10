@@ -340,3 +340,103 @@ def plot_rolling_betas(
     fig.savefig(out_file, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return out_file
+
+
+def plot_signals_with_markers(
+    z_series: pd.Series,
+    signals_df: pd.DataFrame,
+    entry_z: float,
+    exit_z: float,
+    split_date: Union[str, pd.Timestamp],
+    out_path: Union[str, Path],
+    pair_name: str = "Pair",
+) -> Path:
+    """Plot spread z-score trajectory with explicit entry and exit trade markers.
+
+    Parameters
+    ----------
+    z_series : pd.Series
+        Normalized z-score series.
+    signals_df : pd.DataFrame
+        Signals DataFrame containing 'entry_flag', 'exit_flag', 'state', and 'exit_reason'.
+    entry_z : float
+        Statistical divergence entry threshold (e.g. 2.0).
+    exit_z : float
+        Mean-reversion exit threshold (e.g. 0.5).
+    split_date : Union[str, pd.Timestamp]
+        Train/validation boundary date.
+    out_path : Union[str, Path]
+        Destination PNG path.
+    pair_name : str
+        Display title for the pair.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    split_dt = pd.Timestamp(split_date)
+
+    fig, ax = plt.subplots(figsize=(12, 5.5))
+
+    # Plot z-score curve
+    ax.plot(z_series.index, z_series.values, color="#1f77b4", linewidth=1.1, label="Z-Score $z_t$")
+
+    # Threshold horizontal reference lines
+    ax.axhline(0.0, color="#333333", linestyle="-", linewidth=0.8, alpha=0.7)
+    ax.axhline(entry_z, color="#d62728", linestyle="--", linewidth=1.0, label=f"+{entry_z}σ Short Entry")
+    ax.axhline(-entry_z, color="#2ca02c", linestyle="--", linewidth=1.0, label=f"-{entry_z}σ Long Entry")
+    ax.axhline(exit_z, color="#ff7f0e", linestyle=":", linewidth=1.0, label=f"±{exit_z}σ Exit Bands")
+    ax.axhline(-exit_z, color="#ff7f0e", linestyle=":", linewidth=1.0)
+
+    # Shaded periods
+    ax.axvspan(z_series.index.min(), split_dt, color="#2ca02c", alpha=0.07, label="Train (2018–2021)")
+    ax.axvspan(split_dt, z_series.index.max(), color="#d62728", alpha=0.07, label="Validation (2022)")
+    ax.axvline(split_dt, color="#333333", linestyle=":", linewidth=1.2)
+
+    # Entry markers
+    long_entries = signals_df[(signals_df["entry_flag"]) & (signals_df["state"] == 1)]
+    short_entries = signals_df[(signals_df["entry_flag"]) & (signals_df["state"] == -1)]
+    exits = signals_df[signals_df["exit_flag"]]
+
+    if not long_entries.empty:
+        ax.scatter(
+            long_entries.index,
+            z_series.loc[long_entries.index],
+            color="#2ca02c",
+            marker="^",
+            s=80,
+            zorder=5,
+            label=f"Long Spread Entry (n={len(long_entries)})",
+        )
+
+    if not short_entries.empty:
+        ax.scatter(
+            short_entries.index,
+            z_series.loc[short_entries.index],
+            color="#d62728",
+            marker="v",
+            s=80,
+            zorder=5,
+            label=f"Short Spread Entry (n={len(short_entries)})",
+        )
+
+    if not exits.empty:
+        ax.scatter(
+            exits.index,
+            z_series.loc[exits.index],
+            color="#333333",
+            marker="x",
+            s=70,
+            linewidth=1.8,
+            zorder=5,
+            label=f"Exit Signal (n={len(exits)})",
+        )
+
+    ax.set_title(f"{pair_name}: Z-Score Signal State Machine (Train & Validation)", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Normalized Spread Z-Score", fontsize=9)
+    ax.set_xlabel("Date", fontsize=10)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="upper left", ncol=3, fontsize=8, framealpha=0.85)
+
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
