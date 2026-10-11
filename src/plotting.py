@@ -440,3 +440,199 @@ def plot_signals_with_markers(
     fig.savefig(out_file, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return out_file
+
+
+def plot_gross_vs_net_equity(
+    daily_df: pd.DataFrame,
+    initial_capital: float,
+    out_path: Union[str, Path],
+    title: str = "Portfolio Equity Curve: Gross vs. Net of Friction",
+) -> Path:
+    """Plot cumulative gross equity curve alongside net equity curve with shaded cost wedge.
+
+    Parameters
+    ----------
+    daily_df : pd.DataFrame
+        Daily portfolio DataFrame containing 'equity' and 'gross_pnl'.
+    initial_capital : float
+        Starting equity base.
+    out_path : Union[str, Path]
+        Output path for the generated PNG.
+    title : str
+        Figure title.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    dates = pd.to_datetime(daily_df.index)
+    net_eq = daily_df["equity"].values
+    gross_eq = (initial_capital + daily_df["gross_pnl"].cumsum()).values
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.plot(dates, gross_eq / 1000.0, label="Gross Equity (Zero Friction)", color="#1f77b4", linewidth=1.5)
+    ax.plot(dates, net_eq / 1000.0, label="Net Equity (After Commissions, Slippage & Borrow)", color="#2ca02c", linewidth=1.6)
+
+    # Shade the friction wedge between gross and net
+    ax.fill_between(dates, net_eq / 1000.0, gross_eq / 1000.0, color="#d62728", alpha=0.15, label="Cumulative Transaction & Borrow Costs")
+
+    # Baseline capital horizontal line
+    ax.axhline(initial_capital / 1000.0, color="#666666", linestyle="--", linewidth=1.0, alpha=0.8, label=f"Initial Capital (${initial_capital:,.0f})")
+
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+    ax.set_ylabel("Portfolio Equity ($k)", fontsize=10)
+    ax.set_xlabel("Date", fontsize=10)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="upper left", fontsize=8.5, framealpha=0.9)
+
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
+def plot_drawdown(
+    equity_series: pd.Series,
+    out_path: Union[str, Path],
+    title: str = "Portfolio Underwater Drawdown Curve",
+) -> Path:
+    """Plot underwater drawdown curve with shaded area.
+
+    Parameters
+    ----------
+    equity_series : pd.Series
+        Equity curve time series.
+    out_path : Union[str, Path]
+        Output path for PNG.
+    title : str
+        Figure title.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    dates = pd.to_datetime(equity_series.index)
+    peak = equity_series.cummax()
+    dd = ((equity_series - peak) / peak) * 100.0  # percentage
+
+    max_dd = abs(float(dd.min()))
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+
+    ax.plot(dates, dd.values, color="#d62728", linewidth=1.2, label=f"Drawdown (Max: -{max_dd:.2f}%)")
+    ax.fill_between(dates, dd.values, 0.0, color="#d62728", alpha=0.25)
+    ax.axhline(0.0, color="#333333", linestyle="-", linewidth=0.8)
+
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+    ax.set_ylabel("Underwater Drawdown (%)", fontsize=10)
+    ax.set_xlabel("Date", fontsize=10)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower left", fontsize=9, framealpha=0.9)
+
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
+def plot_per_pair_pnl(
+    per_pair_df: pd.DataFrame,
+    out_path: Union[str, Path],
+    title: str = "Per-Pair Net P&L Contribution",
+) -> Path:
+    """Generate bar chart of per-pair net P&L with positive/negative color formatting.
+
+    Parameters
+    ----------
+    per_pair_df : pd.DataFrame
+        Table containing 'pair' and 'net_pnl' columns.
+    out_path : Union[str, Path]
+        Output path for PNG.
+    title : str
+        Figure title.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    pairs = per_pair_df["pair"].tolist()
+    pnls = per_pair_df["net_pnl"].tolist()
+    colors = ["#2ca02c" if p >= 0 else "#d62728" for p in pnls]
+
+    bars = ax.bar(pairs, pnls, color=colors, width=0.55, edgecolor="#333333", linewidth=0.8)
+
+    # Value annotations on bars
+    for bar, val in zip(bars, pnls):
+        y_pos = bar.get_height()
+        offset = max(abs(val) * 0.03, 1000.0)
+        va = "bottom" if val >= 0 else "top"
+        text_y = y_pos + offset if val >= 0 else y_pos - offset
+        ax.text(bar.get_x() + bar.get_width() / 2.0, text_y, f"${val:,.0f}", ha="center", va=va, fontsize=8.5, fontweight="bold")
+
+    ax.axhline(0.0, color="#333333", linestyle="-", linewidth=1.0)
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
+    ax.set_ylabel("Net P&L ($)", fontsize=10)
+    ax.grid(True, linestyle="--", alpha=0.5, axis="y")
+
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
+def plot_trade_distributions(
+    trades_df: pd.DataFrame,
+    out_path: Union[str, Path],
+    title: str = "Distribution of Trade Returns and Holding Periods",
+) -> Path:
+    """Plot dual histograms showing trade return distribution and holding period duration.
+
+    Parameters
+    ----------
+    trades_df : pd.DataFrame
+        Trade log containing 'return_on_capital' and 'holding_days'.
+    out_path : Union[str, Path]
+        Output path for PNG.
+    title : str
+        Figure title.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    if not trades_df.empty:
+        rets = trades_df["return_on_capital"] * 100.0  # Percentage return on pair capital
+        holds = trades_df["holding_days"]
+
+        # 1. Trade returns histogram
+        n_bins_ret = min(15, max(5, len(rets) // 2))
+        ax1.hist(rets, bins=n_bins_ret, color="#1f77b4", edgecolor="#333333", alpha=0.75)
+        ax1.axvline(0.0, color="#d62728", linestyle="--", linewidth=1.2, label="Zero P&L")
+        mean_ret = rets.mean()
+        ax1.axvline(mean_ret, color="#2ca02c", linestyle="-", linewidth=1.2, label=f"Mean ({mean_ret:+.2f}%)")
+        ax1.set_title("Trade Return Distribution (% on Pair Capital)", fontsize=10, fontweight="bold")
+        ax1.set_xlabel("Trade Return (%)", fontsize=9)
+        ax1.set_ylabel("Frequency", fontsize=9)
+        ax1.legend(loc="upper left", fontsize=8)
+        ax1.grid(True, linestyle="--", alpha=0.5)
+
+        # 2. Holding period histogram
+        n_bins_hold = min(15, max(5, int(holds.max() - holds.min() + 1)))
+        ax2.hist(holds, bins=n_bins_hold, color="#ff7f0e", edgecolor="#333333", alpha=0.75)
+        mean_hold = holds.mean()
+        ax2.axvline(mean_hold, color="#333333", linestyle="-", linewidth=1.2, label=f"Mean ({mean_hold:.1f} days)")
+        ax2.set_title("Holding Period Distribution (Trading Days)", fontsize=10, fontweight="bold")
+        ax2.set_xlabel("Holding Period (Days)", fontsize=9)
+        ax2.set_ylabel("Frequency", fontsize=9)
+        ax2.legend(loc="upper right", fontsize=8)
+        ax2.grid(True, linestyle="--", alpha=0.5)
+    else:
+        ax1.text(0.5, 0.5, "No Trades", ha="center", va="center")
+        ax2.text(0.5, 0.5, "No Trades", ha="center", va="center")
+
+    fig.suptitle(title, fontsize=12, fontweight="bold", y=1.02)
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file

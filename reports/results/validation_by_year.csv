@@ -1,0 +1,2 @@
+year,trading_days,gross_pnl,trade_cost,borrow_cost,net_pnl,return,annualized_volatility,sharpe_ratio,max_drawdown,n_trades,turnover
+2022,251,16082.34,9746.26,1432.6,4903.47,0.004903,0.0362,0.1537,0.0292,24,9.71
