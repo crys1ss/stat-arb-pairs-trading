@@ -36,8 +36,8 @@
     "win_rate": 0.96875,
     "n_wins": 31,
     "n_losses": 1,
-    "mean_trade_return": 0.03317556571016636,
-    "median_trade_return": 0.030252875455095647,
+    "mean_trade_return": 0.0331755657101664,
+    "median_trade_return": 0.030252875455095675,
     "mean_holding_days": 21.65625,
     "max_holding_days": 29,
     "profit_factor": 83.39015421333566
@@ -53,11 +53,11 @@
   "concentration": {
     "pnl_shares": {
       "BAC_PNC": 0.09162235100872533,
-      "MDLZ_PG": 0.1881107529272515,
-      "MDLZ_PEP": 0.1409559174020738,
-      "COP_DVN": 0.2852308211305599,
+      "MDLZ_PG": 0.18811075292725146,
+      "MDLZ_PEP": 0.14095591740207378,
+      "COP_DVN": 0.28523082113055986,
       "COP_CVX": 0.2940801575313895
     },
-    "hhi": 0.23148864159838412
+    "hhi": 0.23148864159838406
   }
 }

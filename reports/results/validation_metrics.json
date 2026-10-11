@@ -1,7 +1,7 @@
 {
   "period": "validation",
   "initial_capital": 1000000.0,
-  "ending_equity": 1004903.4728010212,
+  "ending_equity": 1004903.4728010211,
   "risk_free_rate_assumed": 0.0,
   "trading_days": 251,
   "annualization_days": 252,
@@ -36,11 +36,11 @@
     "win_rate": 0.625,
     "n_wins": 15,
     "n_losses": 9,
-    "mean_trade_return": 0.001021556833546056,
-    "median_trade_return": 0.0064899059785292,
+    "mean_trade_return": 0.0010215568335460573,
+    "median_trade_return": 0.006489905978529233,
     "mean_holding_days": 25.666666666666668,
     "max_holding_days": 29,
-    "profit_factor": 1.0770140349617794
+    "profit_factor": 1.0770140349617796
   },
   "market_exposure": {
     "percentage_days_in_market": 0.8964,
@@ -54,7 +54,7 @@
     "pnl_shares": {
       "BAC_PNC": 0.24076277731565185,
       "MDLZ_PG": 0.0820248990932991,
-      "MDLZ_PEP": 0.02797750399062185,
+      "MDLZ_PEP": 0.027977503990621842,
       "COP_DVN": 0.4416331274405898,
       "COP_CVX": 0.20760169215983734
     },

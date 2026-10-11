@@ -1,0 +1,63 @@
+{
+  "period": "test",
+  "initial_capital": 1000000.0,
+  "ending_equity": 992386.723668337,
+  "risk_free_rate_assumed": 0.0,
+  "trading_days": 501,
+  "annualization_days": 252,
+  "performance_comparison": {
+    "gross": {
+      "total_pnl": 10586.12,
+      "cumulative_return": 0.010586,
+      "annualized_return_cagr": 0.005311,
+      "annualized_volatility": 0.028567,
+      "sharpe_ratio_rf_0": 0.1997,
+      "max_drawdown": 0.030605,
+      "max_drawdown_duration_days": 266
+    },
+    "net": {
+      "total_pnl": -7613.28,
+      "cumulative_return": -0.007613,
+      "annualized_return_cagr": -0.003837,
+      "annualized_volatility": 0.028832,
+      "sharpe_ratio_rf_0": -0.1189,
+      "max_drawdown": 0.037096,
+      "max_drawdown_duration_days": 478
+    }
+  },
+  "costs": {
+    "total_trade_costs": 15602.81,
+    "total_borrow_costs": 2596.59,
+    "total_all_costs": 18199.4,
+    "cost_drag_on_gross_pnl": 1.7192
+  },
+  "trade_statistics": {
+    "n_trades": 39,
+    "win_rate": 0.46153846153846156,
+    "n_wins": 18,
+    "n_losses": 21,
+    "mean_trade_return": -0.0009760610681619269,
+    "median_trade_return": -0.0022264940575049217,
+    "mean_holding_days": 26.871794871794872,
+    "max_holding_days": 29,
+    "profit_factor": 0.9129219389077231
+  },
+  "market_exposure": {
+    "percentage_days_in_market": 0.992,
+    "average_gross_exposure": 417932.24,
+    "average_gross_leverage": 0.4222,
+    "average_net_exposure": -104150.54,
+    "average_open_pairs": 2.09,
+    "annualized_turnover": 7.93
+  },
+  "concentration": {
+    "pnl_shares": {
+      "BAC_PNC": 0.16250036102672372,
+      "MDLZ_PG": 0.12742974876603627,
+      "MDLZ_PEP": 0.012368501668711788,
+      "COP_DVN": 0.5573702376915017,
+      "COP_CVX": 0.1403311508470266
+    },
+    "hhi": 0.3731521018002517
+  }
+}

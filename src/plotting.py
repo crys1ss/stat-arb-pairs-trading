@@ -636,3 +636,348 @@ def plot_trade_distributions(
     fig.savefig(out_file, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return out_file
+
+
+def compute_chained_equity(
+    train_daily_df: pd.DataFrame,
+    val_daily_df: pd.DataFrame,
+    test_daily_df: Optional[pd.DataFrame] = None,
+    initial_capital: float = 1000000.0,
+    method: str = "compounded",
+) -> pd.Series:
+    """Compute continuous chained net equity series across train, validation, and test periods.
+
+    Chaining Methodology
+    --------------------
+    1. 'compounded' (Default / Standard):
+       Concatenates the daily net percentage returns r_t = net_pnl_t / equity_{t-1} across
+       train, validation, and test periods, compounding continuously from initial capital C_0:
+           Equity_t = C_0 * prod_{tau=1}^t (1 + r_tau)
+       This ensures seamless multi-period returns matching portfolio reinvestment dynamics.
+    2. 'additive':
+       Concatenates daily net P&L across all periods and accumulates from initial capital:
+           Equity_t = C_0 + sum_{tau=1}^t net_pnl_tau
+       This represents a fixed nominal dollar allocation convention ($200k/pair per period).
+
+    Parameters
+    ----------
+    train_daily_df : pd.DataFrame
+        Daily metrics for train period containing 'return', 'net_pnl', 'equity'.
+    val_daily_df : pd.DataFrame
+        Daily metrics for validation period.
+    test_daily_df : Optional[pd.DataFrame]
+        Daily metrics for test period (if evaluated).
+    initial_capital : float
+        Starting portfolio capital base.
+    method : str
+        'compounded' or 'additive'.
+
+    Returns
+    -------
+    pd.Series
+        Chained net equity series indexed by DatetimeIndex.
+    """
+    dfs = [train_daily_df, val_daily_df]
+    if test_daily_df is not None and not test_daily_df.empty:
+        dfs.append(test_daily_df)
+
+    if method == "compounded":
+        all_rets = pd.concat([df["return"] for df in dfs])
+        all_rets.index = pd.to_datetime(all_rets.index)
+        all_rets = all_rets.sort_index()
+        chained = initial_capital * (1.0 + all_rets).cumprod()
+    elif method == "additive":
+        all_pnl = pd.concat([df["net_pnl"] for df in dfs])
+        all_pnl.index = pd.to_datetime(all_pnl.index)
+        all_pnl = all_pnl.sort_index()
+        chained = initial_capital + all_pnl.cumsum()
+    else:
+        raise ValueError(f"Unknown chaining method: {method}. Choose 'compounded' or 'additive'.")
+
+    chained.name = "chained_equity"
+    return chained
+
+
+def plot_chained_equity(
+    train_daily_df: pd.DataFrame,
+    val_daily_df: pd.DataFrame,
+    test_daily_df: Optional[pd.DataFrame],
+    out_path: Union[str, Path],
+    initial_capital: float = 1000000.0,
+    chaining_method: str = "compounded",
+    title: str = "Multi-Period Chained Portfolio Net Equity (2018–2024)",
+) -> Path:
+    """Plot full historical net equity curve chaining train, validation, and test periods.
+
+    Shades each distinct evaluation period and includes formal documentation of the chaining
+    methodology directly on the chart and in the metadata.
+
+    Parameters
+    ----------
+    train_daily_df : pd.DataFrame
+        Train period daily portfolio DataFrame.
+    val_daily_df : pd.DataFrame
+        Validation period daily portfolio DataFrame.
+    test_daily_df : Optional[pd.DataFrame]
+        Test period daily portfolio DataFrame (if available).
+    out_path : Union[str, Path]
+        Destination PNG path.
+    initial_capital : float
+        Starting capital.
+    chaining_method : str
+        'compounded' or 'additive'.
+    title : str
+        Figure title.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    chained = compute_chained_equity(
+        train_daily_df=train_daily_df,
+        val_daily_df=val_daily_df,
+        test_daily_df=test_daily_df,
+        initial_capital=initial_capital,
+        method=chaining_method,
+    )
+
+    t_dates = pd.to_datetime(train_daily_df.index)
+    v_dates = pd.to_datetime(val_daily_df.index)
+    has_test = test_daily_df is not None and not test_daily_df.empty
+    if has_test:
+        te_dates = pd.to_datetime(test_daily_df.index)
+
+    fig, ax = plt.subplots(figsize=(13, 6.5))
+
+    # Plot full chained equity
+    ax.plot(chained.index, chained.values / 1000.0, color="#1f77b4", linewidth=1.6, label="Chained Net Equity", zorder=4)
+
+    # Shaded periods
+    # Train
+    ax.axvspan(t_dates.min(), t_dates.max(), color="#2ca02c", alpha=0.10, label="Train Period (2018–2021)")
+    # Validation
+    ax.axvspan(v_dates.min(), v_dates.max(), color="#ff7f0e", alpha=0.12, label="Validation Period (2022)")
+    # Test
+    if has_test:
+        ax.axvspan(te_dates.min(), te_dates.max(), color="#9467bd", alpha=0.12, label="Test Period (2023–2024, Out-of-Sample)")
+
+    # Boundary dividers
+    ax.axvline(t_dates.max(), color="#333333", linestyle="--", linewidth=1.1, alpha=0.8)
+    if has_test:
+        ax.axvline(v_dates.max(), color="#333333", linestyle="--", linewidth=1.1, alpha=0.8)
+
+    # Initial capital baseline
+    ax.axhline(initial_capital / 1000.0, color="#666666", linestyle=":", linewidth=1.0, alpha=0.8, label=f"Initial Capital (${initial_capital:,.0f})")
+
+    # Annotate period endings
+    train_end_eq = chained.loc[t_dates.max()]
+    val_end_eq = chained.loc[v_dates.max()]
+    ax.scatter([t_dates.max()], [train_end_eq / 1000.0], color="#2ca02c", s=40, zorder=5)
+    ax.annotate(
+        f"Train End: ${train_end_eq:,.0f}",
+        xy=(t_dates.max(), train_end_eq / 1000.0),
+        xytext=(-70, 15),
+        textcoords="offset points",
+        fontsize=8.5,
+        fontweight="bold",
+        arrowprops=dict(arrowstyle="->", color="#2ca02c", lw=1.0),
+    )
+
+    ax.scatter([v_dates.max()], [val_end_eq / 1000.0], color="#ff7f0e", s=40, zorder=5)
+    ax.annotate(
+        f"Val End: ${val_end_eq:,.0f}",
+        xy=(v_dates.max(), val_end_eq / 1000.0),
+        xytext=(-60, -25),
+        textcoords="offset points",
+        fontsize=8.5,
+        fontweight="bold",
+        arrowprops=dict(arrowstyle="->", color="#ff7f0e", lw=1.0),
+    )
+
+    if has_test:
+        test_end_eq = chained.loc[te_dates.max()]
+        ax.scatter([te_dates.max()], [test_end_eq / 1000.0], color="#9467bd", s=40, zorder=5)
+        ax.annotate(
+            f"Test End: ${test_end_eq:,.0f}",
+            xy=(te_dates.max(), test_end_eq / 1000.0),
+            xytext=(-70, 15),
+            textcoords="offset points",
+            fontsize=8.5,
+            fontweight="bold",
+            arrowprops=dict(arrowstyle="->", color="#9467bd", lw=1.0),
+        )
+
+    # Documentation box describing chaining mechanism
+    doc_text = (
+        "Chaining Methodology:\n"
+        "• Concatenated daily net returns r_t across periods.\n"
+        "• Compounded continuously: E_t = E_0 × ∏(1 + r_t).\n"
+        "• Train: 1,008 days | Val: 251 days | Test: 501 days."
+    )
+    ax.text(
+        0.02,
+        0.04,
+        doc_text,
+        transform=ax.transAxes,
+        fontsize=8.0,
+        verticalalignment="bottom",
+        bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="#cccccc", alpha=0.9),
+    )
+
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
+    ax.set_ylabel("Portfolio Net Equity ($k)", fontsize=10)
+    ax.set_xlabel("Date", fontsize=10)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="upper left", fontsize=8.5, framealpha=0.9)
+
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
+def plot_full_span_drawdown(
+    chained_equity_series: pd.Series,
+    train_end_date: Union[str, pd.Timestamp],
+    val_end_date: Union[str, pd.Timestamp],
+    out_path: Union[str, Path],
+    title: str = "Full-Span Portfolio Underwater Drawdown (2018–2024)",
+) -> Path:
+    """Plot underwater drawdown curve across the full chained historical span (2018–2024).
+
+    Parameters
+    ----------
+    chained_equity_series : pd.Series
+        Chained net equity time series.
+    train_end_date : Union[str, pd.Timestamp]
+        Calendar end date of training period.
+    val_end_date : Union[str, pd.Timestamp]
+        Calendar end date of validation period.
+    out_path : Union[str, Path]
+        Destination PNG path.
+    title : str
+        Figure title.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    dates = pd.to_datetime(chained_equity_series.index)
+    peak = chained_equity_series.cummax()
+    dd = ((chained_equity_series - peak) / peak) * 100.0  # percentage
+
+    max_dd = abs(float(dd.min()))
+    max_dd_date = dd.idxmin()
+
+    t_end = pd.Timestamp(train_end_date)
+    v_end = pd.Timestamp(val_end_date)
+
+    fig, ax = plt.subplots(figsize=(13, 5.5))
+
+    # Plot drawdown curve
+    ax.plot(dates, dd.values, color="#d62728", linewidth=1.3, label=f"Underwater Drawdown (Max: -{max_dd:.2f}%)")
+    ax.fill_between(dates, dd.values, 0.0, color="#d62728", alpha=0.22)
+    ax.axhline(0.0, color="#333333", linestyle="-", linewidth=0.8)
+
+    # Shaded periods
+    ax.axvspan(dates.min(), t_end, color="#2ca02c", alpha=0.08, label="Train Period (2018–2021)")
+    ax.axvspan(t_end, v_end, color="#ff7f0e", alpha=0.10, label="Validation Period (2022)")
+    ax.axvspan(v_end, dates.max(), color="#9467bd", alpha=0.10, label="Test Period (2023–2024)")
+
+    # Divider lines
+    ax.axvline(t_end, color="#333333", linestyle="--", linewidth=1.0, alpha=0.7)
+    ax.axvline(v_end, color="#333333", linestyle="--", linewidth=1.0, alpha=0.7)
+
+    # Annotate max drawdown
+    ax.scatter([max_dd_date], [dd.loc[max_dd_date]], color="#800000", s=60, zorder=6)
+    ax.annotate(
+        f"Max DD: -{max_dd:.2f}%\n({pd.Timestamp(max_dd_date).strftime('%Y-%m-%d')})",
+        xy=(max_dd_date, dd.loc[max_dd_date]),
+        xytext=(30, -25),
+        textcoords="offset points",
+        fontsize=8.5,
+        fontweight="bold",
+        arrowprops=dict(arrowstyle="->", color="#800000", lw=1.2),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="#ffe6e6", edgecolor="#d62728", alpha=0.9),
+    )
+
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
+    ax.set_ylabel("Underwater Drawdown (%)", fontsize=10)
+    ax.set_xlabel("Date", fontsize=10)
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower left", fontsize=8.5, framealpha=0.9)
+
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
+def plot_test_zscore_signals(
+    z_series_dict: Dict[str, pd.Series],
+    signals_df_dict: Dict[str, pd.DataFrame],
+    entry_z: float,
+    exit_z: float,
+    out_path: Union[str, Path],
+    title: str = "Test Period Z-Score Trajectory and Trade Signals (2023–2024)",
+) -> Path:
+    """Generate multi-panel figure displaying test period z-scores and trade signals for all pairs.
+
+    Parameters
+    ----------
+    z_series_dict : Dict[str, pd.Series]
+        Mapping from pair name to test period z-score series.
+    signals_df_dict : Dict[str, pd.DataFrame]
+        Mapping from pair name to test period signals DataFrame.
+    entry_z : float
+        Entry threshold (e.g. 2.0).
+    exit_z : float
+        Exit threshold (e.g. 0.5).
+    out_path : Union[str, Path]
+        Destination PNG path.
+    title : str
+        Figure super title.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    pairs = list(z_series_dict.keys())
+    n_pairs = len(pairs)
+
+    fig, axes = plt.subplots(n_pairs, 1, figsize=(13, 2.5 * n_pairs), sharex=True)
+    if n_pairs == 1:
+        axes = [axes]
+
+    for ax, pair in zip(axes, pairs):
+        z_series = z_series_dict[pair]
+        signals_df = signals_df_dict[pair]
+
+        ax.plot(z_series.index, z_series.values, color="#1f77b4", linewidth=1.1, label="$z_t$")
+        ax.axhline(0.0, color="#333333", linestyle="-", linewidth=0.7, alpha=0.7)
+        ax.axhline(entry_z, color="#d62728", linestyle="--", linewidth=0.9, label=f"+{entry_z}σ")
+        ax.axhline(-entry_z, color="#2ca02c", linestyle="--", linewidth=0.9, label=f"-{entry_z}σ")
+        ax.axhline(exit_z, color="#ff7f0e", linestyle=":", linewidth=0.8)
+        ax.axhline(-exit_z, color="#ff7f0e", linestyle=":", linewidth=0.8)
+
+        # Plot trade markers
+        long_entries = signals_df[(signals_df["entry_flag"]) & (signals_df["state"] == 1)]
+        short_entries = signals_df[(signals_df["entry_flag"]) & (signals_df["state"] == -1)]
+        exits = signals_df[signals_df["exit_flag"]]
+
+        if not long_entries.empty:
+            ax.scatter(long_entries.index, z_series.loc[long_entries.index], color="#2ca02c", marker="^", s=60, zorder=5, label="Long")
+        if not short_entries.empty:
+            ax.scatter(short_entries.index, z_series.loc[short_entries.index], color="#d62728", marker="v", s=60, zorder=5, label="Short")
+        if not exits.empty:
+            ax.scatter(exits.index, z_series.loc[exits.index], color="#333333", marker="x", s=50, linewidth=1.5, zorder=5, label="Exit")
+
+        ax.set_title(f"{pair} (Test Period: {len(long_entries) + len(short_entries)} entries, {len(exits)} exits)", fontsize=9.5, fontweight="bold")
+        ax.set_ylabel("z-score", fontsize=8.5)
+        ax.grid(True, linestyle="--", alpha=0.4)
+        ax.legend(loc="upper right", ncol=6, fontsize=7.5, framealpha=0.8)
+
+    axes[-1].set_xlabel("Date", fontsize=9.5)
+    fig.suptitle(title, fontsize=12, fontweight="bold", y=0.995)
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+

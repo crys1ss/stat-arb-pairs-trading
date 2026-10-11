@@ -129,3 +129,39 @@ def test_volatility_zero_or_trivial():
     vol = compute_annualized_volatility(const_rets)
     assert math.isnan(vol)
     assert not math.isinf(vol)
+
+
+def test_compute_chained_equity():
+    from src.plotting import compute_chained_equity
+
+    # Period 1: 2 days, returns +10%, -5%
+    df1 = pd.DataFrame(
+        {"return": [0.10, -0.05], "net_pnl": [100.0, -55.0], "equity": [1100.0, 1045.0]},
+        index=pd.date_range("2020-01-01", periods=2),
+    )
+    # Period 2: 2 days, returns +20%, -10%
+    df2 = pd.DataFrame(
+        {"return": [0.20, -0.10], "net_pnl": [209.0, -125.4], "equity": [1254.0, 1128.6]},
+        index=pd.date_range("2020-01-03", periods=2),
+    )
+
+    initial_capital = 1000.0
+    chained_comp = compute_chained_equity(df1, df2, initial_capital=initial_capital, method="compounded")
+    assert len(chained_comp) == 4
+    # Day 1: 1000 * 1.1 = 1100
+    assert abs(chained_comp.iloc[0] - 1100.0) < 1e-6
+    # Day 2: 1100 * 0.95 = 1045
+    assert abs(chained_comp.iloc[1] - 1045.0) < 1e-6
+    # Day 3: 1045 * 1.20 = 1254
+    assert abs(chained_comp.iloc[2] - 1254.0) < 1e-6
+    # Day 4: 1254 * 0.90 = 1128.6
+    assert abs(chained_comp.iloc[3] - 1128.6) < 1e-6
+
+    # Test additive chaining
+    chained_add = compute_chained_equity(df1, df2, initial_capital=initial_capital, method="additive")
+    assert len(chained_add) == 4
+    assert abs(chained_add.iloc[0] - 1100.0) < 1e-6
+    assert abs(chained_add.iloc[1] - 1045.0) < 1e-6
+    assert abs(chained_add.iloc[2] - (1045.0 + 209.0)) < 1e-6
+    assert abs(chained_add.iloc[3] - (1045.0 + 209.0 - 125.4)) < 1e-6
+

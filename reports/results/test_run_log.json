@@ -1,0 +1,9 @@
+{
+  "timestamp_utc": "2026-10-11T10:46:15.888263+00:00",
+  "git_commit_hash": "94d2fe7eef4dc499029714ebbbd747847a9a5440",
+  "git_tag": "frozen-v1",
+  "config_file": "configs/test_run.yaml",
+  "config_sha256": "f31936a3f8bf76dc59e039091b8cfec86a17d88fe56574ca8c9f74e2b0aeb023",
+  "evaluation_period": "test",
+  "status": "COMPLETED_ONCE"
+}
