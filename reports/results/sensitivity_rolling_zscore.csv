@@ -1,0 +1,7 @@
+period,variant_category,label,zscore_method,zscore_description,gross_pnl,net_pnl,gross_sharpe,net_sharpe,net_cagr,net_max_drawdown,max_drawdown_duration_days,trade_costs,borrow_costs,total_costs,n_trades,win_rate,mean_holding_days,annualized_turnover
+train,zscore_methodology,"sensitivity, not selection",training_fixed,Fixed In-Sample Mean & Std,226590.84,212323.62,2.1066,1.9782,0.049312,0.011685,137,12967.88,1299.34,14267.22,32,0.9688,21.66,2.88
+train,zscore_methodology,"sensitivity, not selection",rolling_60,Rolling 60d Mean & Std (Lag 1),155429.17,107028.22,1.0027,0.6955,0.025746,0.031422,212,44644.66,3756.28,48400.94,111,0.7117,17.28,10.66
+validation,zscore_methodology,"sensitivity, not selection",training_fixed,Fixed In-Sample Mean & Std,16082.34,4903.47,0.4638,0.1537,0.004923,0.029154,91,9746.26,1432.6,11178.86,24,0.625,25.67,9.71
+validation,zscore_methodology,"sensitivity, not selection",rolling_60,Rolling 60d Mean & Std (Lag 1),5526.1,-5950.19,0.1807,-0.1581,-0.005974,0.024388,236,10398.28,1078.02,11476.29,26,0.5385,19.85,10.54
+test,zscore_methodology,"sensitivity, not selection",training_fixed,Fixed In-Sample Mean & Std,10586.12,-7613.28,0.1997,-0.1189,-0.003837,0.037096,478,15602.81,2596.59,18199.4,39,0.4615,26.87,7.93
+test,zscore_methodology,"sensitivity, not selection",rolling_60,Rolling 60d Mean & Std (Lag 1),42917.27,19034.76,0.8109,0.366,0.00953,0.034089,224,22001.41,1881.1,23882.51,55,0.6364,17.16,10.78

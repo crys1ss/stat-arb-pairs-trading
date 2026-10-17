@@ -171,9 +171,22 @@ def run_portfolio(
 
         params = {"alpha": alpha, "beta": beta, "leg_a": leg_a, "leg_b": leg_b}
 
-        # Construct spread and normalized z-score using strictly frozen training statistics
+        # Construct spread and normalized z-score (frozen training statistics or rolling 60-day)
         spread = construct_spread(period_prices, params)
-        z = zscore(spread, mu_train=mu_train, sd_train=sd_train)
+        if getattr(cfg.signals, "z_score_baseline", "training_fixed") == "rolling_60":
+            if full_prices is not None and leg_a in full_prices.columns and leg_b in full_prices.columns:
+                spread_full = construct_spread(full_prices, params)
+                mu_roll = spread_full.rolling(window=60, min_periods=60).mean().shift(1)
+                sd_roll = spread_full.rolling(window=60, min_periods=60).std(ddof=1).shift(1)
+                z_full = (spread_full - mu_roll) / sd_roll
+                z = z_full.reindex(period_prices.index)
+            else:
+                mu_roll = spread.rolling(window=60, min_periods=10).mean().shift(1)
+                sd_roll = spread.rolling(window=60, min_periods=10).std(ddof=1).shift(1)
+                z = (spread - mu_roll) / sd_roll
+            z.name = f"{spread.name}_zscore" if spread.name else "zscore"
+        else:
+            z = zscore(spread, mu_train=mu_train, sd_train=sd_train)
 
         # Generate signals via state machine
         sig_df = generate_signals(

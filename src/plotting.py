@@ -981,3 +981,184 @@ def plot_test_zscore_signals(
     plt.close(fig)
     return out_file
 
+
+def plot_sensitivity_entry_exit_heatmaps(
+    grid_df: pd.DataFrame,
+    out_path: Union[str, Path] = "reports/figures/sensitivity_entry_exit_heatmap.png",
+) -> Path:
+    """Plot 3-panel heatmaps of Net Sharpe Ratio across entry_z and exit_z for train, validation, and test.
+
+    Strictly labeled: 'Sensitivity, not selection'.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    periods = ["train", "validation", "test"]
+    period_titles = {
+        "train": "Train Period (2018–2021)",
+        "validation": "Validation Period (2022)",
+        "test": "Out-of-Sample Test (2023–2024)",
+    }
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.8), sharey=True)
+
+    for i, period in enumerate(periods):
+        ax = axes[i]
+        sub = grid_df[grid_df["period"] == period]
+        if sub.empty:
+            continue
+
+        pivot = sub.pivot(index="entry_z", columns="exit_z", values="net_sharpe")
+        # Sort index descending so higher entry_z is at top
+        pivot = pivot.sort_index(ascending=False)
+
+        x_vals = pivot.columns.tolist()
+        y_vals = pivot.index.tolist()
+        mat = pivot.values
+
+        # Determine colormap normalization
+        vmin = -0.5
+        vmax = 2.5
+        im = ax.imshow(mat, cmap="coolwarm", aspect="auto", vmin=vmin, vmax=vmax)
+
+        # Set ticks and labels
+        ax.set_xticks(range(len(x_vals)))
+        ax.set_xticklabels([f"{x:.1f}σ" for x in x_vals], fontsize=9)
+        if i == 0:
+            ax.set_yticks(range(len(y_vals)))
+            ax.set_yticklabels([f"{y:.1f}σ" for y in y_vals], fontsize=9)
+            ax.set_ylabel("Entry Threshold ($z_{entry}$)", fontsize=10, fontweight="bold")
+        else:
+            ax.set_yticks([])
+
+        ax.set_xlabel("Exit Threshold ($z_{exit}$)", fontsize=10, fontweight="bold")
+        ax.set_title(period_titles.get(period, period), fontsize=10.5, fontweight="bold")
+
+        # Annotate cell values
+        for r in range(len(y_vals)):
+            for c in range(len(x_vals)):
+                val = mat[r, c]
+                text_color = "white" if abs(val) > 1.2 or val < -0.2 else "black"
+                ax.text(
+                    c,
+                    r,
+                    f"{val:+.2f}",
+                    ha="center",
+                    va="center",
+                    color=text_color,
+                    fontsize=10,
+                    fontweight="bold",
+                )
+
+    fig.subplots_adjust(right=0.88, top=0.82, wspace=0.15)
+    cbar_ax = fig.add_axes([0.90, 0.15, 0.018, 0.62])
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label("Net Sharpe Ratio ($r_f=0$)", fontsize=9.5)
+
+    fig.suptitle(
+        "Entry vs Exit Z-Score Parameter Sensitivity: Net Sharpe Ratio\n[Sensitivity, Not Selection]",
+        fontsize=12,
+        fontweight="bold",
+        y=0.97,
+    )
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
+
+def plot_sensitivity_cost_curves(
+    cost_df: pd.DataFrame,
+    breakeven_df: Optional[pd.DataFrame] = None,
+    out_path: Union[str, Path] = "reports/figures/sensitivity_cost_curve.png",
+) -> Path:
+    """Plot Net Sharpe Ratio and Net P&L against cost per side per leg across periods.
+
+    Strictly labeled: 'Sensitivity, not selection'.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.2))
+
+    colors = {"train": "#2ca02c", "validation": "#1f77b4", "test": "#d62728"}
+    labels = {
+        "train": "Train (2018–2021)",
+        "validation": "Validation (2022)",
+        "test": "Out-of-Sample Test (2023–2024)",
+    }
+
+    # Left Panel: Net Sharpe vs Cost per side (bps) at baseline borrow 50 bps
+    baseline_borrow = 50.0
+    for period in ["train", "validation", "test"]:
+        sub = cost_df[(cost_df["period"] == period) & (cost_df["borrow_bps_annual"] == baseline_borrow)].sort_values("cost_per_side_bps")
+        if sub.empty:
+            continue
+        ax1.plot(
+            sub["cost_per_side_bps"],
+            sub["net_sharpe"],
+            marker="o",
+            linewidth=1.8,
+            color=colors.get(period, "#333333"),
+            label=labels.get(period, period),
+        )
+
+    ax1.axhline(0.0, color="#333333", linestyle="--", linewidth=1.0, alpha=0.7, label="Sharpe = 0.0")
+    ax1.set_xlabel("Friction Cost per Side per Leg (bps: Commission + Slippage)", fontsize=9.5, fontweight="bold")
+    ax1.set_ylabel("Net Sharpe Ratio ($r_f=0$)", fontsize=9.5, fontweight="bold")
+    ax1.set_title("Net Sharpe vs Transaction Cost", fontsize=10.5, fontweight="bold")
+    ax1.grid(True, linestyle="--", alpha=0.5)
+    ax1.legend(loc="upper right", fontsize=8.5, framealpha=0.9)
+
+    # Right Panel: Net P&L ($) vs Cost per side (bps)
+    for period in ["train", "validation", "test"]:
+        sub = cost_df[(cost_df["period"] == period) & (cost_df["borrow_bps_annual"] == baseline_borrow)].sort_values("cost_per_side_bps")
+        if sub.empty:
+            continue
+        ax2.plot(
+            sub["cost_per_side_bps"],
+            sub["net_pnl"],
+            marker="s",
+            linewidth=1.8,
+            color=colors.get(period, "#333333"),
+            label=labels.get(period, period),
+        )
+
+    ax2.axhline(0.0, color="#333333", linestyle="--", linewidth=1.0, alpha=0.7, label="Net P&L = $0.00")
+
+    # Annotate break-even points if available
+    if breakeven_df is not None and not breakeven_df.empty:
+        for _, row in breakeven_df.iterrows():
+            period = str(row["period"])
+            be_bps = float(row["breakeven_cost_per_side_bps"])
+            if not np.isnan(be_bps) and 0.0 <= be_bps <= 25.0:
+                ax2.scatter([be_bps], [0.0], color=colors.get(period, "black"), s=90, zorder=6, edgecolors="black")
+                ax2.annotate(
+                    f"{period.capitalize()} Break-even:\n{be_bps:.1f} bps",
+                    xy=(be_bps, 0.0),
+                    xytext=(be_bps + 1.0, 15000 if period == "validation" else -25000),
+                    arrowprops=dict(arrowstyle="->", color=colors.get(period, "black"), lw=1.0),
+                    fontsize=8.5,
+                    fontweight="bold",
+                    color=colors.get(period, "black"),
+                    bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.85, edgecolor=colors.get(period, "black")),
+                )
+
+    ax2.set_xlabel("Friction Cost per Side per Leg (bps: Commission + Slippage)", fontsize=9.5, fontweight="bold")
+    ax2.set_ylabel("Net P&L ($)", fontsize=9.5, fontweight="bold")
+    ax2.set_title("Net P&L vs Transaction Cost & Break-Even Thresholds", fontsize=10.5, fontweight="bold")
+    ax2.grid(True, linestyle="--", alpha=0.5)
+    ax2.legend(loc="upper right", fontsize=8.5, framealpha=0.9)
+
+    fig.suptitle(
+        "Transaction Cost Sensitivity & Zero-Alpha Break-Even Thresholds\n[Sensitivity, Not Selection]",
+        fontsize=12,
+        fontweight="bold",
+        y=1.02,
+    )
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+

@@ -1,0 +1,7 @@
+period,variant_category,label,execution_lag,gross_pnl,net_pnl,gross_sharpe,net_sharpe,net_cagr,net_max_drawdown,max_drawdown_duration_days,trade_costs,borrow_costs,total_costs,n_trades,win_rate,mean_holding_days,annualized_turnover
+train,execution_lag,"sensitivity, not selection",1,226590.84,212323.62,2.1066,1.9782,0.049312,0.011685,137,12967.88,1299.34,14267.22,32,0.9688,21.66,2.88
+train,execution_lag,"sensitivity, not selection",2,225129.41,211742.06,1.9008,1.7899,0.049186,0.013781,134,12164.36,1222.99,13387.35,30,0.8667,21.47,2.74
+validation,execution_lag,"sensitivity, not selection",1,16082.34,4903.47,0.4638,0.1537,0.004923,0.029154,91,9746.26,1432.6,11178.86,24,0.625,25.67,9.71
+validation,execution_lag,"sensitivity, not selection",2,42286.55,35362.99,1.459,1.222,0.035506,0.026571,116,5995.1,928.46,6923.56,15,0.7333,26.8,5.96
+test,execution_lag,"sensitivity, not selection",1,10586.12,-7613.28,0.1997,-0.1189,-0.003837,0.037096,478,15602.81,2596.59,18199.4,39,0.4615,26.87,7.93
+test,execution_lag,"sensitivity, not selection",2,15492.0,4886.37,0.3684,0.1237,0.002455,0.027282,422,9176.08,1429.56,10605.63,23,0.6957,25.3,4.61

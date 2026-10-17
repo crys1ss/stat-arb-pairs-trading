@@ -1,0 +1,10 @@
+period,variant_category,label,max_hold_days,gross_pnl,net_pnl,gross_sharpe,net_sharpe,net_cagr,net_max_drawdown,max_drawdown_duration_days,trade_costs,borrow_costs,total_costs,n_trades,win_rate,mean_holding_days,annualized_turnover
+train,max_hold_horizon,"sensitivity, not selection",15,187048.71,170764.37,1.8085,1.6554,0.040201,0.01437,157,15383.94,900.41,16284.34,38,0.9737,12.63,3.51
+train,max_hold_horizon,"sensitivity, not selection",30,226590.84,212323.62,2.1066,1.9782,0.049312,0.011685,137,12967.88,1299.34,14267.22,32,0.9688,21.66,2.88
+train,max_hold_horizon,"sensitivity, not selection",60,232655.21,220086.71,2.1277,2.0165,0.050988,0.011679,117,10979.69,1588.81,12568.5,27,1.0,30.93,2.44
+validation,max_hold_horizon,"sensitivity, not selection",15,22711.02,6180.92,0.702,0.2023,0.006206,0.034331,95,15332.54,1197.55,16530.09,38,0.5789,13.5,15.27
+validation,max_hold_horizon,"sensitivity, not selection",30,16082.34,4903.47,0.4638,0.1537,0.004923,0.029154,91,9746.26,1432.6,11178.86,24,0.625,25.67,9.71
+validation,max_hold_horizon,"sensitivity, not selection",60,27616.52,19985.8,0.7523,0.5492,0.020066,0.025131,91,6109.23,1521.49,7630.72,15,0.8,43.67,6.05
+test,max_hold_horizon,"sensitivity, not selection",15,16626.88,-14146.43,0.3195,-0.2454,-0.007141,0.038616,422,28359.07,2414.25,30773.32,71,0.5352,13.66,14.42
+test,max_hold_horizon,"sensitivity, not selection",30,10586.12,-7613.28,0.1997,-0.1189,-0.003837,0.037096,478,15602.81,2596.59,18199.4,39,0.4615,26.87,7.93
+test,max_hold_horizon,"sensitivity, not selection",60,29913.27,18021.64,0.5291,0.3246,0.009025,0.032487,312,9176.67,2714.96,11891.63,23,0.6087,47.83,4.62

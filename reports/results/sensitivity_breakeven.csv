@@ -1,0 +1,4 @@
+period,label,borrow_bps_annual,breakeven_cost_per_side_bps,baseline_cost_per_side_bps,baseline_net_pnl,gross_pnl,borrow_costs,status,notes
+train,"sensitivity, not selection",50.0,173.73,10.0,212323.62,226590.84,1299.34,Profitable at baseline,Linear interpolation zero-crossing; Net P&L = -1296.79 * Cost + 225291.50
+validation,"sensitivity, not selection",50.0,15.03,10.0,4903.47,16082.34,1432.6,Profitable at baseline,Linear interpolation zero-crossing; Net P&L = -974.63 * Cost + 14649.73
+test,"sensitivity, not selection",50.0,5.12,10.0,-7613.28,10586.12,2596.59,Unprofitable at baseline (Friction Dominated),Linear interpolation zero-crossing; Net P&L = -1560.28 * Cost + 7989.53
