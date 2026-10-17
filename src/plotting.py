@@ -1162,3 +1162,111 @@ def plot_sensitivity_cost_curves(
     return out_file
 
 
+def plot_trade_divergence(
+    trade_info: Dict[str, Any],
+    prices: pd.DataFrame,
+    entry_z: float = 2.0,
+    exit_z: float = 0.5,
+    out_path: Union[str, Path] = "reports/figures/worst_trade_divergence.png",
+) -> Path:
+    """Plot spread z-score path and normalized underlying prices for a pathological trade divergence case.
+
+    Parameters
+    ----------
+    trade_info : Dict[str, Any]
+        Trade metadata containing pair, direction, entry_date, exit_date, net_pnl, etc.
+    prices : pd.DataFrame
+        Price history panel.
+    entry_z : float, default 2.0
+        Entry divergence threshold.
+    exit_z : float, default 0.5
+        Exit mean-reversion threshold.
+    out_path : Union[str, Path]
+        Destination PNG path.
+
+    Returns
+    -------
+    Path
+        Resolved figure path.
+    """
+    out_file = Path(out_path)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+
+    pair = trade_info["pair"]
+    leg_a, leg_b = pair.split("_")
+    direction = trade_info["direction"]
+    entry_dt = pd.to_datetime(trade_info["entry_date"])
+    exit_dt = pd.to_datetime(trade_info["exit_date"])
+    net_pnl = trade_info["net_pnl"]
+    days_held = trade_info["holding_days"]
+    exit_reason = trade_info["exit_reason"]
+    rank = trade_info.get("rank", 1)
+    period = trade_info.get("period", "test")
+
+    z_series = trade_info["z_extended"]
+
+    # Extended window for prices
+    plot_start = entry_dt - pd.Timedelta(days=15)
+    plot_end = exit_dt + pd.Timedelta(days=10)
+
+    p_mask = (prices.index >= plot_start) & (prices.index <= plot_end)
+    p_sub = prices.loc[p_mask]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7.5), sharex=True)
+
+    # 1. Top Panel: Spread z-score trajectory
+    ax1.plot(z_series.index, z_series.values, color="#1f77b4", linewidth=1.6, label="Spread $z_t$")
+    ax1.axhline(0.0, color="#333333", linestyle="-", linewidth=0.8, alpha=0.6)
+    ax1.axhline(entry_z, color="#d62728", linestyle="--", linewidth=1.0, label=f"+{entry_z}σ Entry")
+    ax1.axhline(-entry_z, color="#2ca02c", linestyle="--", linewidth=1.0, label=f"-{entry_z}σ Entry")
+    ax1.axhline(exit_z, color="#ff7f0e", linestyle=":", linewidth=0.9, label=f"±{exit_z}σ Exit")
+    ax1.axhline(-exit_z, color="#ff7f0e", linestyle=":", linewidth=0.9)
+
+    # Shaded holding period
+    ax1.axvspan(entry_dt, exit_dt, color="#ffdddd" if net_pnl < 0 else "#ddffdd", alpha=0.4, label=f"Holding Period ({days_held}d)")
+
+    # Markers
+    if entry_dt in z_series.index:
+        ax1.scatter([entry_dt], [z_series.loc[entry_dt]], color="#d62728" if direction == -1 else "#2ca02c",
+                    marker="v" if direction == -1 else "^", s=110, zorder=6, label=f"Entry ({'Short' if direction == -1 else 'Long'})")
+    if exit_dt in z_series.index:
+        ax1.scatter([exit_dt], [z_series.loc[exit_dt]], color="black", marker="X", s=110, zorder=6, label=f"Exit ({exit_reason})")
+
+    ax1.set_ylabel("Normalized Spread $z_t$", fontsize=9.5, fontweight="bold")
+    ax1.set_title(f"Spread $z_t$ Path (Entry $z={z_series.loc[entry_dt]:.2f}$ → Exit $z={z_series.loc[exit_dt]:.2f}$)", fontsize=10.5, fontweight="bold")
+    ax1.grid(True, linestyle="--", alpha=0.5)
+    ax1.legend(loc="upper left", ncol=4, fontsize=8, framealpha=0.9)
+
+    # 2. Bottom Panel: Underlying stock prices normalized at entry (Base = 100)
+    p_a_entry = float(p_sub.loc[p_sub.index >= entry_dt, leg_a].iloc[0])
+    p_b_entry = float(p_sub.loc[p_sub.index >= entry_dt, leg_b].iloc[0])
+
+    norm_a = (p_sub[leg_a] / p_a_entry) * 100.0
+    norm_b = (p_sub[leg_b] / p_b_entry) * 100.0
+
+    ax2.plot(norm_a.index, norm_a.values, color="#e377c2", linewidth=1.6, label=f"{leg_a} (Normalized)")
+    ax2.plot(norm_b.index, norm_b.values, color="#17becf", linewidth=1.6, label=f"{leg_b} (Normalized)")
+    ax2.axhline(100.0, color="#333333", linestyle="--", linewidth=0.8, alpha=0.5)
+    ax2.axvspan(entry_dt, exit_dt, color="#ffdddd" if net_pnl < 0 else "#ddffdd", alpha=0.4)
+
+    ax2.set_xlabel("Date", fontsize=9.5, fontweight="bold")
+    ax2.set_ylabel("Price Index ($P_{entry}=100$)", fontsize=9.5, fontweight="bold")
+    ax2.set_title(f"Underlying Asset Price Divergence ({leg_a} vs {leg_b})", fontsize=10.5, fontweight="bold")
+    ax2.grid(True, linestyle="--", alpha=0.5)
+    ax2.legend(loc="upper left", fontsize=8.5, framealpha=0.9)
+
+    dir_str = "Short Spread (Short A, Long B)" if direction == -1 else "Long Spread (Long A, Short B)"
+    fig.suptitle(
+        f"Trade Divergence Failure Analysis: Worst Trade #{rank} — {pair} ({period.capitalize()})\n"
+        f"Direction: {dir_str} | Days Held: {days_held} | Net P&L: ${net_pnl:,.2f} | Exit Reason: {exit_reason}",
+        fontsize=11.5,
+        fontweight="bold",
+        y=0.99,
+    )
+    plt.tight_layout()
+    fig.savefig(out_file, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
+

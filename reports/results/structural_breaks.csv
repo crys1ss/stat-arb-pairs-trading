@@ -1,0 +1,6 @@
+pair,cusum_statistic,p_value,crit_1pct,crit_5pct,crit_10pct,has_structural_break
+BAC_PNC,5.9888,0.0,1.63,1.36,1.22,True
+MDLZ_PG,8.8972,0.0,1.63,1.36,1.22,True
+MDLZ_PEP,6.2344,0.0,1.63,1.36,1.22,True
+COP_DVN,13.0531,0.0,1.63,1.36,1.22,True
+COP_CVX,5.993,0.0,1.63,1.36,1.22,True

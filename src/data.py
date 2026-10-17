@@ -21,6 +21,8 @@ def download_prices(
     cfg: Config,
     refresh: bool = False,
     raw_dir: Union[str, Path] = "data/raw",
+    tickers: Optional[List[str]] = None,
+    filename: str = "prices.parquet",
 ) -> pd.DataFrame:
     """Download daily equity price history via Yahoo Finance (yfinance) with local caching.
 
@@ -36,6 +38,10 @@ def download_prices(
         If True, ignores cached files and forces a fresh download from Yahoo Finance.
     raw_dir : Union[str, Path], default "data/raw"
         Directory where raw prices parquet and metadata json are persisted.
+    tickers : Optional[List[str]], default None
+        Specific tickers to download. If None, defaults to cfg.universe.all_tickers.
+    filename : str, default "prices.parquet"
+        Destination parquet filename within raw_dir.
 
     Returns
     -------
@@ -50,21 +56,22 @@ def download_prices(
     """
     raw_path = Path(raw_dir)
     raw_path.mkdir(parents=True, exist_ok=True)
-    parquet_file = raw_path / "prices.parquet"
-    metadata_file = raw_path / "metadata.json"
+    parquet_file = raw_path / filename
+    metadata_file = raw_path / ("metadata.json" if filename == "prices.parquet" else f"{Path(filename).stem}_metadata.json")
 
     if not refresh and parquet_file.is_file():
         logger.info(f"Loading cached price data from {parquet_file}")
         return pd.read_parquet(parquet_file)
 
-    tickers: List[str] = cfg.universe.all_tickers
+    target_tickers: List[str] = tickers if tickers is not None else cfg.universe.all_tickers
     start_date: str = cfg.dates.download_start
     # yfinance end date is exclusive; add buffer or pass as specified
     end_date: str = cfg.dates.download_end
 
     logger.info(
-        f"Downloading price history for {len(tickers)} tickers from {start_date} to {end_date} (refresh={refresh})"
+        f"Downloading price history for {len(target_tickers)} tickers from {start_date} to {end_date} (refresh={refresh})"
     )
+
 
     download_attempts = 0
     max_attempts = 2
@@ -77,7 +84,7 @@ def download_prices(
             # auto_adjust=True folds splits and dividends into adjusted prices
             # threads=False prevents SQLite database locks in yfinance internal caching
             df = yf.download(
-                tickers=tickers,
+                tickers=target_tickers,
                 start=start_date,
                 end=end_date,
                 auto_adjust=True,
@@ -117,19 +124,19 @@ def download_prices(
     if isinstance(raw_data.columns, pd.MultiIndex):
         if "Close" in raw_data.columns.levels[0]:
             close_subset = raw_data["Close"]
-            for t in tickers:
+            for t in target_tickers:
                 rows_per_ticker[t] = int(close_subset[t].dropna().shape[0]) if t in close_subset.columns else 0
         else:
-            for t in tickers:
+            for t in target_tickers:
                 rows_per_ticker[t] = int(raw_data.xs(t, axis=1, level=1).dropna().shape[0]) if t in raw_data.columns.levels[1] else 0
     else:
-        for t in tickers:
+        for t in target_tickers:
             rows_per_ticker[t] = int(raw_data[t].dropna().shape[0]) if t in raw_data.columns else 0
 
     metadata: Dict[str, Any] = {
         "retrieval_timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "yfinance_version": getattr(yf, "__version__", "unknown"),
-        "tickers": tickers,
+        "tickers": target_tickers,
         "requested_range": {
             "start": start_date,
             "end": end_date,
