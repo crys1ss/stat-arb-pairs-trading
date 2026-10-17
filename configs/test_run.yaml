@@ -91,3 +91,21 @@ capital:
 
 # Pseudo-random number generator seed to guarantee deterministic reproducibility across all stochastic procedures
 seed: 42
+
+# Sensitivity and Robustness Analysis Grid (Day 11)
+# Note: Every output is labeled "sensitivity, not selection". Does not alter baseline frozen decisions.
+sensitivity:
+  entry_exit_grid:
+    entry_z: [1.5, 2.0, 2.5]
+    exit_z: [0.0, 0.5, 1.0]
+  cost_grid:
+    # Cost per side per leg (commission + slippage combined, in bps)
+    cost_per_side_bps: [0, 5, 10, 20]
+    # Annual short borrow fee in bps
+    borrow_bps_annual: [0, 50, 200]
+  max_hold_days: [15, 30, 60]
+  execution_lag: 2
+  rolling_zscore:
+    window: 60
+    shift: 1
+
