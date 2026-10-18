@@ -115,14 +115,7 @@ def main():
         full_close = pd.read_parquet(processed_file)
     else:
         print("  Cached data not found. Fetching raw price history...")
-        tickers = [t for sec in cfg.universe.values() for t in sec]
-        raw_df, meta = download_prices(
-            tickers=tickers,
-            start=cfg.dates.download_start,
-            end=cfg.dates.download_end,
-            cache_dir=raw_dir,
-            threads=False,
-        )
+        raw_df = download_prices(cfg, refresh=False, raw_dir=raw_dir)
         full_close, _ = build_clean_panel(raw_df)
         full_close.to_parquet(processed_file)
         print(f"  Processed clean panel saved to: {processed_file}")
@@ -292,24 +285,27 @@ def main():
 
         period_summaries[period] = metrics
 
-    # If test period was run, write/refresh test_run_log.json
+    # If test period was run, write test_run_log.json if not already present
     if "test" in periods:
-        config_bytes = config_path.read_bytes()
-        config_sha = hashlib.sha256(config_bytes).hexdigest()
-        commit_hash = get_git_commit_hash()
         test_log_path = results_dir / "test_run_log.json"
-        log_payload = {
-            "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "git_commit_hash": commit_hash,
-            "git_tag": "frozen-v1",
-            "config_file": str(args.config),
-            "config_sha256": config_sha,
-            "evaluation_period": "test",
-            "status": "COMPLETED_ONCE",
-        }
-        with open(test_log_path, "w", encoding="utf-8") as f:
-            json.dump(log_payload, f, indent=2)
-        print(f"  Test run audit log updated: {test_log_path}")
+        if not test_log_path.exists():
+            config_bytes = config_path.read_bytes()
+            config_sha = hashlib.sha256(config_bytes).hexdigest()
+            commit_hash = get_git_commit_hash()
+            log_payload = {
+                "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "git_commit_hash": commit_hash,
+                "git_tag": "frozen-v1",
+                "config_file": str(args.config),
+                "config_sha256": config_sha,
+                "evaluation_period": "test",
+                "status": "COMPLETED_ONCE",
+            }
+            with open(test_log_path, "w", encoding="utf-8") as f:
+                json.dump(log_payload, f, indent=2)
+            print(f"  Test run audit log created: {test_log_path}")
+        else:
+            print(f"  Preserving existing test run audit log: {test_log_path}")
 
     # -------------------------------------------------------------------------
     # STAGE 6: Multi-Period Chained Equity, Full Drawdown & Test Signals
