@@ -1,14 +1,15 @@
 # Project Progress & Handoff Log
 
 ## Status
-- Day: 13 of 14
-- Current Phase: Research report and metric audit complete.
+- Day: 14 of 14
+- Current Phase: Research complete, reproducibility verified, v1.0 released.
 - Test Status: All tests passing (`pytest -q`, 69 passed).
 
 ## Decisions log
 - Permanent Rule on Post-Test Modifications: Any parameter change made after seeing test results must be logged, and the test set must then be described as no longer untouched.
 - Research freeze: Frozen all parameters, dates, pairs, and SHA-256 hashes in `docs/FROZEN_DECISIONS.md`; committed and tagged `frozen-v1`.
 - Failure diagnosis: Diagnostics confirm out-of-sample decay stems from cointegration breakdown (0 of 5 cointegrated in test) and structural parameter drift (CUSUM p < 0.0001), not systematic market beta.
+- Reproducibility verification: Clean reproduction test verified in fresh virtual environment and cloned repository; all metrics replicated with 0 discrepancies.
 
 ## Day log
 ### Day 12: Risk, Stability & Failure Mode Analysis
@@ -28,8 +29,13 @@
   2. Decay Diagnosis: Total cointegration breakdown in test (0 of 5 cointegrated) and structural parameter drift (CUSUM p < 0.0001).
   3. Market Neutrality: Strategy maintains zero market exposure (beta +0.0075, p = 0.5422).
 - Full suite: 69 passed (`pytest -q`).
-- Remaining: Day 14 (recruiter README, CV bullet points, run_pipeline verification).
+- Remaining: None (14-day milestone execution complete).
+
+### Day 14: Documentation, Verification, Hygiene & CV Bullets
+- Implemented: Hiring-manager ready `README.md` (equations, architecture, 4 figures, quickstart, data disclaimer), `docs/CHECKLIST.md` (100% passed across sections 4–14), CV bullets.
+- Tested: Clean reproducibility test executed in isolated venv from fresh clone; full pipeline produced identical results (69 unit tests passed).
+- Hygiene: 0 files > 5MB, 0 secrets, 0 uncommitted raw/processed caches, 0 TODOs.
+- Tagged: `git tag v1.0`.
 
 ## Next
-- Next commands:
-  - Day 14 start: Read `docs/AGENT_RULES.md` and `PROGRESS.md`, then draft recruiter-facing `README.md`, CV bullets, and verify pipeline end-to-end.
+- Execute GitHub push (`gh repo create` or manual remote add).
