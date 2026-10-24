@@ -145,3 +145,36 @@ Capital weights are defined as $w_A = \frac{1}{1 + \beta}$ and $w_B = -\frac{\be
 ## 8. Formal Freeze Certification
 
 All quantitative parameters, model specifications, universe definitions, and historical code artifacts are hereby frozen under Git tag `frozen-v1`. No subsequent adjustments to hedge ratios, signal thresholds, or execution rules may be made without documenting the test dataset as contaminated.
+
+---
+
+## 9. Post-Freeze Addendum (Day 15)
+
+### 9.1 Cryptographic Hash Erratum (Line Endings)
+The SHA-256 hash recorded in Section 1 for `reports/results/selected_pairs.csv` (`52c64903406c29327353774343c683f2f90942fd638c478392cfdb6493a23c51`) was computed on Windows using CRLF (`\r\n`) line endings. Under Git LF normalization (`* text=auto eol=lf`), the canonical LF SHA-256 hash is:
+- **Canonical LF SHA-256 (`selected_pairs.csv`)**: `6952604f8d142d24d8fdd7bd1db45804665e49f6917f73c1b393c9d47cf7124d`
+- **Original Windows CRLF SHA-256 (`selected_pairs.csv`)**: `52c64903406c29327353774343c683f2f90942fd638c478392cfdb6493a23c51`
+
+Both hashes represent bit-for-bit identical tabular contents across all rows and columns. The baseline configuration file `configs/baseline.yaml` recorded hash (`40f7c5f8b1ab2a0c53c5b7866c87d6a8bd3ad1bb1b30639f311a2f6426ec39d0`) was already computed using LF line endings and is unchanged. Automated verification is enforced in `tests/test_frozen_hashes.py`.
+
+### 9.2 Post-Freeze Code Modifications & Scientific Grounding
+Per the research protocol, code modifications made subsequent to the Day 10 freeze (`frozen-v1`) are recorded chronologically below:
+
+1. **Day 11 (Sensitivity Analysis)**:
+   - `src/portfolio.py`: Added `rolling_60` branch to evaluate causal rolling 60-day z-score normalization during parameter robustness checks without altering baseline fixed in-sample statistics.
+2. **Day 12 (Benchmark Data Retrieval)**:
+   - `src/data.py`: Added `tickers` and `filename` parameters to `fetch_data()` and `load_clean_panel()` to download and cache SPY ETF benchmark price history for market exposure regression without altering the 18-ticker pairs panel cache.
+3. **Day 15 (Independent Review Patches)**:
+   - `src/backtest.py`: Replaced single-slot pending execution state (`pending_entry`, `pending_exit`) with FIFO queues (`pending_entries`, `pending_exits`) scheduled strictly from bar close signal flags rather than the engine's current position state. This resolved a bug where execution lag $\ge 2$ dropped interleaved exit and re-entry signals. Added a `t < n - 1` guard to entry fills to prevent positions opening on the final bar without exit logging or trade costs.
+   - `src/portfolio.py`: Initialized `full_prices = None` prior to `if prices is None` check to prevent `UnboundLocalError` when a custom `prices` DataFrame is passed under `rolling_60`, and aligned the fallback branch to `min_periods=60`.
+   - `scripts/run_pipeline.py`: Added `--recompute` verification mode to re-run pair screening and OLS hedge parameter fitting on training prices from local cache (`data/processed/close.parquet`), assert numerical match (`rtol=1e-5`) with frozen CSV files, print `MATCH`, and never overwrite frozen outputs. Shared `fit_hedge_params_df` loop across cached and recompute paths.
+   - `src/sensitivity.py`: Dynamic pair count `len(res.pair_results)` substituted for hard-coded divisor `5.0` in `extract_summary_record`.
+
+### 9.3 Documentation vs. Code Corrections (Item 8 Errata)
+1. **Half-Life Formula**:
+   - In Section 5.3, the Ornstein-Uhlenbeck half-life formula was stated as $\tau = -\frac{\ln(2)}{\ln(1+\phi)}$ from discrete AR(1) dynamics.
+   - The actual implementation in `src/pairs.py` uses the continuous linear approximation $t_{1/2} = -\frac{\ln(2)}{\gamma}$, where $\gamma$ is the OLS slope of $\Delta s_t$ on $s_{t-1}$. For a typical 20-day half-life ($\gamma \approx -0.0341$), the difference is under 2%. The code implementation is preserved to guarantee frozen result immutability.
+2. **Short Leg Borrow Fee Convention**:
+   - In Section 6, borrow fees were documented as charged daily on mark-to-market short equity notional.
+   - The actual implementation in `src/backtest.py` fixes the short leg notional at entry fill price ($\text{shares} \times P_{\text{entry}}$) and charges $\frac{\text{borrow\_bps\_annual}}{10^4 \times 252} \times \text{short\_notional}$ daily while held. For standard 20–30 day holding periods with modest price movements, this convention tracks mark-to-market borrow within fractions of a basis point. The original text in Section 6 is retained untouched per protocol.
+

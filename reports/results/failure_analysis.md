@@ -88,8 +88,8 @@ Performance broken down by calendar year and stressed macro windows:
 
 The quantitative diagnostics above establish four fundamental conclusions regarding why the baseline cointegration strategy succeeded in-sample but deteriorated out-of-sample:
 
-1. **Complete Absence of Market Directionality Risk (|Beta| ≈ 0)**:  
-Across all periods, the strategy's market beta to SPY was minimal (Test Beta = -0.0318, p = 0.0079; Full Span Beta = +0.0075, R² = 0.0028). The out-of-sample drawdown was not driven by broad equity market directionality or systematic market beta, confirming that dollar-neutral pair weighting successfully isolated idiosyncratic spread dynamics.
+1. **Market Exposure & Beta Profile**:  
+Across all periods, |beta| to SPY is small (ranging from 0.0075 to 0.0318) and R² is at most about 5 percent (4.60% in train). However, the Newey-West HAC t-stat is statistically significant with negative beta in validation (beta = -0.0233, t = -2.31, p = 0.0211) and test (beta = -0.0318, t = -2.66, p = 0.0079), while not significant in train (beta = +0.0252, t = +1.43, p = 0.1539) or full span (beta = +0.0075, t = +0.61, p = 0.5422, R² = 0.0028). While beta is not statistically zero across all periods, the small absolute magnitude of |beta| indicates drawdown was driven primarily by idiosyncratic spread breakdown rather than broad market directionality.
 
 2. **Structural Parameter Instability & Cointegration Decay**:  
 The OLS-residual CUSUM test rejected parameter stability for 100% of candidate pairs (all p-values < 0.0001, test statistics 5.99–13.05 vs 1% critical value 1.63). Static OLS hedge ratios estimated during the 2018–2021 low-rate calibration regime experienced severe drift, with rolling 252-day betas deviating by up to 140.5% (MDLZ_PG). Crucially, bidirectional Engle-Granger tests reveal that 0 of 5 pairs maintained statistical cointegration in the 2023–2024 test window (test p-values 0.207 to 0.951). Spreads that exhibited stationary mean reversion in 2018–2021 transitioned into non-stationary random walks post-2022.

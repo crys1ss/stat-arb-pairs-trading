@@ -126,6 +126,7 @@ def run_portfolio(
             "Set `cfg.dates.unlock_test = True` only after all model decisions have been frozen."
         )
 
+    full_prices = None
     if prices is None:
         data_file = Path("data/processed/close.parquet")
         if not data_file.exists():
@@ -181,8 +182,8 @@ def run_portfolio(
                 z_full = (spread_full - mu_roll) / sd_roll
                 z = z_full.reindex(period_prices.index)
             else:
-                mu_roll = spread.rolling(window=60, min_periods=10).mean().shift(1)
-                sd_roll = spread.rolling(window=60, min_periods=10).std(ddof=1).shift(1)
+                mu_roll = spread.rolling(window=60, min_periods=60).mean().shift(1)
+                sd_roll = spread.rolling(window=60, min_periods=60).std(ddof=1).shift(1)
                 z = (spread - mu_roll) / sd_roll
             z.name = f"{spread.name}_zscore" if spread.name else "zscore"
         else:

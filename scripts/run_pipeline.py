@@ -63,7 +63,92 @@ def parse_args():
         default="configs/baseline.yaml",
         help="Path to YAML configuration file.",
     )
+    parser.add_argument(
+        "--recompute",
+        action="store_true",
+        default=False,
+        help="Recompute pair screening and hedge fitting from cached train close prices, verify against frozen results, and never overwrite.",
+    )
     return parser.parse_args()
+
+
+def fit_hedge_params_df(selected_df: pd.DataFrame, train_close: pd.DataFrame) -> pd.DataFrame:
+    """Fit frozen OLS hedge ratios and spread statistics on training prices."""
+    records = []
+    for _, row in selected_df.iterrows():
+        pair = str(row["pair"])
+        a = str(row["leg_a"])
+        b = str(row["leg_b"])
+        sec = str(row["sector"])
+        is_expl = bool(row.get("is_exploratory", False))
+        log_a_train = np.log(train_close[a])
+        log_b_train = np.log(train_close[b])
+        fit_res = fit_hedge(log_a_train, log_b_train)
+        params = {
+            "alpha": fit_res["alpha"],
+            "beta": fit_res["beta"],
+            "leg_a": a,
+            "leg_b": b,
+        }
+        train_spread = construct_spread(train_close, params)
+        hl = half_life(train_spread)
+        abs_beta = abs(fit_res["beta"])
+        w_a = 1.0 / (1.0 + abs_beta)
+        w_b = -fit_res["beta"] / (1.0 + abs_beta)
+        records.append({
+            "pair": pair,
+            "leg_a": a,
+            "leg_b": b,
+            "sector": sec,
+            "alpha": round(fit_res["alpha"], 6),
+            "beta": round(fit_res["beta"], 6),
+            "r_squared": round(fit_res["r_squared"], 4),
+            "res_mean_train": round(float(train_spread.mean()), 6),
+            "res_std_train": round(float(train_spread.std(ddof=1)), 6),
+            "half_life_train": round(hl, 2) if not np.isnan(hl) else float("nan"),
+            "weight_a": round(w_a, 6),
+            "weight_b": round(w_b, 6),
+            "is_exploratory": is_expl,
+        })
+    return pd.DataFrame(records)
+
+
+def verify_matches_frozen(
+    recomputed: pd.DataFrame,
+    existing: pd.DataFrame,
+    filename: str,
+    rtol: float = 1e-5,
+) -> list[str]:
+    """Compare recomputed DataFrame against existing frozen DataFrame within rtol tolerance."""
+    mismatches = []
+    if recomputed.shape != existing.shape:
+        mismatches.append(f"{filename}: shape mismatch {recomputed.shape} vs {existing.shape}")
+        return mismatches
+
+    if list(recomputed.columns) != list(existing.columns):
+        mismatches.append(f"{filename}: columns mismatch {recomputed.columns.tolist()} vs {existing.columns.tolist()}")
+        return mismatches
+
+    for col in existing.columns:
+        s_rec = recomputed[col]
+        s_exist = existing[col]
+        if s_exist.dtype == bool or s_rec.dtype == bool:
+            diff = (s_rec.astype(bool).values != s_exist.astype(bool).values).sum()
+            if diff > 0:
+                mismatches.append(f"{filename} column '{col}': {diff} boolean mismatches")
+        elif pd.api.types.is_numeric_dtype(s_exist):
+            rec_vals = s_rec.values.astype(float)
+            exist_vals = s_exist.values.astype(float)
+            both_nan = np.isnan(rec_vals) & np.isnan(exist_vals)
+            valid = ~both_nan
+            if not np.allclose(rec_vals[valid], exist_vals[valid], rtol=rtol, atol=1e-8):
+                diff = np.abs(rec_vals[valid] - exist_vals[valid])
+                mismatches.append(f"{filename} column '{col}': max diff {np.max(diff)} exceeds rtol={rtol}")
+        else:
+            diff = (s_rec.astype(str).values != s_exist.astype(str).values).sum()
+            if diff > 0:
+                mismatches.append(f"{filename} column '{col}': {diff} string mismatches")
+    return mismatches
 
 
 def get_git_commit_hash() -> str:
@@ -93,6 +178,7 @@ def main():
     print("=" * 80)
     print(f"STARTING RESEARCH PIPELINE with config: {args.config}")
     print(f"  Unlock Test Period: {cfg.dates.unlock_test}")
+    print(f"  Recompute Mode: {args.recompute}")
     print("=" * 80)
 
     # Output directories
@@ -122,73 +208,64 @@ def main():
 
     print(f"  Total price panel shape: {full_close.shape[0]} days x {full_close.shape[1]} tickers")
 
-    # -------------------------------------------------------------------------
-    # STAGE 2: Pair Screening (Using Cache)
-    # -------------------------------------------------------------------------
-    print("\n[Stage 2/6] Verifying Pair Screening Registry...")
     selected_pairs_path = results_dir / "selected_pairs.csv"
     screening_path = results_dir / "pair_screening.csv"
-
-    if selected_pairs_path.exists():
-        print(f"  Reusing cached selected pairs registry: {selected_pairs_path}")
-        selected_pairs_df = pd.read_csv(selected_pairs_path)
-    else:
-        print("  Cached screening not found. Screening training data (2018–2021)...")
-        train_close = slice_period(full_close, "train", cfg)
-        screening_df, selected_pairs_df = screen_pairs(train_close, cfg)
-        screening_df.to_csv(screening_path, index=False)
-        selected_pairs_df.to_csv(selected_pairs_path, index=False)
-        print(f"  Saved selected pairs registry ({len(selected_pairs_df)} pairs): {selected_pairs_path}")
-
-    # -------------------------------------------------------------------------
-    # STAGE 3: Hedge Parameters & Spreads (Using Cache)
-    # -------------------------------------------------------------------------
-    print("\n[Stage 3/6] Verifying Frozen Hedge Parameters...")
     hedge_params_path = results_dir / "hedge_params.csv"
 
-    if hedge_params_path.exists():
-        print(f"  Reusing cached hedge parameters: {hedge_params_path}")
+    if args.recompute:
+        print("\n[Stage 2 & 3: Verification Mode] Recomputing screening and hedge fits from cached train close prices...")
+        train_close = slice_period(full_close, "train", cfg)
+        recomputed_screening_df, recomputed_selected_df = screen_pairs(train_close, cfg)
+        recomputed_hedge_df = fit_hedge_params_df(recomputed_selected_df, train_close)
+
+        mismatches = []
+        for fname, recomputed_df, file_path in [
+            ("pair_screening.csv", recomputed_screening_df, screening_path),
+            ("selected_pairs.csv", recomputed_selected_df, selected_pairs_path),
+            ("hedge_params.csv", recomputed_hedge_df, hedge_params_path),
+        ]:
+            if not file_path.exists():
+                mismatches.append(f"Existing file missing: {file_path}")
+            else:
+                existing_df = pd.read_csv(file_path)
+                mismatches.extend(verify_matches_frozen(recomputed_df, existing_df, fname, rtol=1e-5))
+
+        if mismatches:
+            raise ValueError("Recomputed screening/hedge parameters do not match frozen files:\n" + "\n".join(mismatches))
+
+        print("MATCH")
+        # NEVER overwrite frozen files. Re-read cached CSVs for downstream backtests.
+        selected_pairs_df = pd.read_csv(selected_pairs_path)
         hedge_df = pd.read_csv(hedge_params_path)
     else:
-        print("  Fitting frozen OLS hedge ratios on training window...")
-        train_close = slice_period(full_close, "train", cfg)
-        records = []
-        for _, row in selected_pairs_df.iterrows():
-            pair = row["pair"]
-            a = row["leg_a"]
-            b = row["leg_b"]
-            sec = row["sector"]
-            is_expl = bool(row.get("is_exploratory", False))
-            log_a_train = np.log(train_close[a])
-            log_b_train = np.log(train_close[b])
-            fit_res = fit_hedge(log_a_train, log_b_train)
-            params = {
-                "alpha": fit_res["alpha"],
-                "beta": fit_res["beta"],
-                "leg_a": a,
-                "leg_b": b,
-            }
-            train_spread = construct_spread(train_close, params)
-            hl = half_life(train_spread)
-            w_a, w_b = compute_weights(fit_res["beta"])
-            records.append({
-                "pair": pair,
-                "leg_a": a,
-                "leg_b": b,
-                "sector": sec,
-                "alpha": fit_res["alpha"],
-                "beta": fit_res["beta"],
-                "r_squared": fit_res["r_squared"],
-                "res_mean_train": float(train_spread.mean()),
-                "res_std_train": float(train_spread.std(ddof=1)),
-                "half_life_train": hl,
-                "weight_a": w_a,
-                "weight_b": w_b,
-                "is_exploratory": is_expl,
-            })
-        hedge_df = pd.DataFrame(records)
-        hedge_df.to_csv(hedge_params_path, index=False)
-        print(f"  Saved hedge parameters: {hedge_params_path}")
+        # -------------------------------------------------------------------------
+        # STAGE 2: Pair Screening (Using Cache)
+        # -------------------------------------------------------------------------
+        print("\n[Stage 2/6] Verifying Pair Screening Registry...")
+        if selected_pairs_path.exists():
+            print(f"  Reusing cached selected pairs registry: {selected_pairs_path}")
+            selected_pairs_df = pd.read_csv(selected_pairs_path)
+        else:
+            print("  Cached screening not found. Screening training data (2018–2021)...")
+            train_close = slice_period(full_close, "train", cfg)
+            screening_df, selected_pairs_df = screen_pairs(train_close, cfg)
+            screening_df.to_csv(screening_path, index=False)
+            selected_pairs_df.to_csv(selected_pairs_path, index=False)
+            print(f"  Saved selected pairs registry ({len(selected_pairs_df)} pairs): {selected_pairs_path}")
+
+        # -------------------------------------------------------------------------
+        # STAGE 3: Hedge Parameters & Spreads (Using Cache)
+        # -------------------------------------------------------------------------
+        print("\n[Stage 3/6] Verifying Frozen Hedge Parameters...")
+        if hedge_params_path.exists():
+            print(f"  Reusing cached hedge parameters: {hedge_params_path}")
+            hedge_df = pd.read_csv(hedge_params_path)
+        else:
+            print("  Fitting frozen OLS hedge ratios on training window...")
+            train_close = slice_period(full_close, "train", cfg)
+            hedge_df = fit_hedge_params_df(selected_pairs_df, train_close)
+            hedge_df.to_csv(hedge_params_path, index=False)
+            print(f"  Saved hedge parameters: {hedge_params_path}")
 
     # -------------------------------------------------------------------------
     # STAGE 4: Multi-Period Backtesting

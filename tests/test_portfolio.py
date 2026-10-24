@@ -149,3 +149,40 @@ def test_exposure_and_open_pairs_tracking(train_result, val_result):
         assert (daily["open_pairs"] >= 0).all()
         assert (daily["open_pairs"] <= k_pairs).all()
         assert (daily["gross_leverage"] >= 0.0).all()
+
+
+def test_run_portfolio_rolling_60_with_prices_passed(cfg):
+    """Verify rolling_60 baseline executes without UnboundLocalError when prices DataFrame is passed."""
+    import copy
+
+    dates = pd.date_range("2020-01-01", periods=80, freq="B")
+    np.random.seed(42)
+    prices = pd.DataFrame(
+        {
+            "A": 100.0 + np.cumsum(np.random.randn(80)),
+            "B": 100.0 + np.cumsum(np.random.randn(80)),
+        },
+        index=dates,
+    )
+    hedge_df = pd.DataFrame(
+        [
+            {
+                "pair": "A_B",
+                "leg_a": "A",
+                "leg_b": "B",
+                "alpha": 0.0,
+                "beta": 1.0,
+                "res_mean_train": 0.0,
+                "res_std_train": 1.0,
+            }
+        ]
+    )
+
+    from dataclasses import replace
+
+    cfg_rolling = replace(cfg, signals=replace(cfg.signals, z_score_baseline="rolling_60"))
+
+    res = run_portfolio(cfg=cfg_rolling, period="train", prices=prices, hedge_params=hedge_df)
+    assert res is not None
+    assert (res.daily["open_pairs"].iloc[:60] == 0).all()
+    assert (res.pair_results["A_B"].daily["position"].iloc[:60] == 0).all()

@@ -37,7 +37,7 @@ def extract_summary_record(
         daily_df=res.daily,
         trades_df=res.trades,
         initial_capital=float(cfg_run.capital.initial_capital),
-        pair_capital=float(cfg_run.capital.initial_capital) / 5.0,
+        pair_capital=float(cfg_run.capital.initial_capital) / float(len(res.pair_results)),
         pairs=list(res.pair_results.keys()),
         turnover=res.turnover,
         period_name=period,

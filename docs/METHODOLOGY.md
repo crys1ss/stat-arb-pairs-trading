@@ -32,9 +32,9 @@ To control the Family-Wise Error Rate (FWER) at $\alpha = 0.05$ without the exce
 ### 1.4 Mean-Reversion Half-Life Filter
 Statistical cointegration does not guarantee tradability on practical investment horizons. We model spread mean reversion using a discrete Ornstein-Uhlenbeck / AR(1) process:
 $$\Delta s_t = \gamma s_{t-1} + \mu + \epsilon_t, \quad \text{where } \gamma = \lambda - 1$$
-The half-life of mean reversion in trading days is:
+The exact discrete half-life is $-\frac{\ln(2)}{\ln(1+\gamma)}$. The code implementation in `src/pairs.py` uses the continuous linear approximation:
 $$t_{1/2} = -\frac{\ln(2)}{\gamma}, \quad \text{for } \gamma < 0$$
-Pairs are filtered to satisfy $t_{1/2} \in [1, 60]$ trading days to eliminate high-frequency microstructural noise ($t_{1/2} < 1$) and untradeable multi-quarter trends ($t_{1/2} > 60$).
+where $\gamma$ is the OLS slope of $\Delta s_t$ on $s_{t-1}$. For a typical 20-day half-life ($\gamma \approx -0.0341$), $\ln(1+\gamma) \approx -0.0347$, and the linear approximation differs from the exact discrete formulation by under 2%. Pairs are filtered to satisfy $t_{1/2} \in [1, 60]$ trading days to eliminate high-frequency microstructural noise ($t_{1/2} < 1$) and untradeable multi-quarter trends ($t_{1/2} > 60$).
 
 ---
 
@@ -64,3 +64,13 @@ Hence, holding $\$w_A$ of $A$ and $-\hat{\beta} w_A$ of $B$ achieves first-order
 At fill date $t$, share counts are established as:
 $$N_A = \frac{\text{Capital}_{\text{pair}} \cdot |w_A|}{P_{A,t}}, \qquad N_B = -\text{sgn}(\hat{\beta}) \frac{\text{Capital}_{\text{pair}} \cdot |w_B|}{P_{B,t}}$$
 Because share quantities are held fixed between entry and exit, relative price movements cause effective dollar weights to drift continuously while positions remain open.
+
+### 2.3 Transaction Friction & Short Borrow Accounting
+1. **Commissions & Slippage**:
+   Charged at both entry and exit on total traded notional:
+   $$\text{Trade Cost} = (\text{commission\_bps} + \text{slippage\_bps}) \times 10^{-4} \times \sum_{i \in \{A, B\}} |N_i| \cdot P_{i,t}$$
+2. **Short Borrow Fee Accrual**:
+   The backtest engine accrues short borrow costs daily while a short position is held. The implementation in `src/backtest.py` charges:
+   $$\text{Daily Borrow Fee} = \frac{\text{borrow\_bps\_annual}}{10^4 \times 252} \times \text{Short Notional}_{\text{entry}}$$
+   where the short leg's notional is fixed at the entry fill price ($|N_{\text{short}}| \cdot P_{\text{short},\text{entry}}$), rather than updating mark-to-market on every daily close. For 20–30 day holding periods with modest single-digit price variations, this entry-fixed convention tracks mark-to-market borrow accrual within fractions of a basis point.
+

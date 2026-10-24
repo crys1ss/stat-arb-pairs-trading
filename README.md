@@ -52,7 +52,7 @@ Screening $m = 45$ intra-sector pairs simultaneously inflates the family-wise er
 
 $$\tilde{p}_{(i)} = \max_{k \le i} \min\left(1.0, \, (m - k + 1) \cdot p_{(k)}\right)$$
 
-Pairs are further filtered through an Ornstein-Uhlenbeck mean-reversion half-life bound: $t_{1/2} = -\frac{\ln 2}{\ln(1 + \phi)} \in [1, 60]\text{ days}$.
+Pairs are further filtered through an Ornstein-Uhlenbeck mean-reversion half-life bound: $t_{1/2} = -\frac{\ln 2}{\gamma} \in [1, 60]\text{ days}$ (where $\gamma$ is the OLS slope of $\Delta s_t$ on lagged spread $s_{t-1}$; the code uses this linear approximation, which differs from $-\ln(2)/\ln(1+\phi)$ by under 2% at a 20-day half-life).
 
 ### Step 3: Spread Z-Score & Causal Execution Logic
 Signals are generated from spread deviations normalized by frozen in-sample mean ($\mu_{\text{train}}$) and volatility ($\sigma_{\text{train}}$):
@@ -63,7 +63,7 @@ $$z_t = \frac{s_t - \mu_{\text{train}}}{\sigma_{\text{train}}}$$
 * **Short Spread Entry ($z_t \ge +2.0$)**: Short leg A, buy leg B.
 * **Mean-Reversion Exit ($|z_t| \le 0.5$)**: Close position when spread reverts within 0.5 standard deviations.
 * **Time-Stop Liquidation**: Unconditionally liquidate open positions if held for $\ge 30$ trading days.
-* **Execution Realism**: Signals evaluated at day $t$ close fill strictly at day $t+1$ close (`execution_lag = 1`). Transaction friction includes 5.0 bps commission + 5.0 bps slippage (10.0 bps/side) plus 50.0 bps annualized short borrow fees.
+* **Execution Realism**: Signals evaluated at day $t$ close fill strictly at day $t+1$ close (`execution_lag = 1`). Transaction friction includes 5.0 bps commission + 5.0 bps slippage (10.0 bps/side) plus 50.0 bps annualized short borrow fees (charged daily as $\text{borrow\_bps\_annual} / 10^4 / 252$ on the short leg notional fixed at entry fill).
 
 ---
 
@@ -87,10 +87,10 @@ stat-arb-pairs-trading/
 │   └── plotting.py              # Visualizations and publication-grade charts
 ├── scripts/
 │   ├── fetch_data.py            # Acquire and validate market price dataset
-│   ├── run_pipeline.py          # Unified end-to-end research pipeline runner
+│   ├── run_pipeline.py          # Unified end-to-end research pipeline runner (--recompute mode)
 │   ├── run_sensitivity.py       # 84-point parameter robustness and break-even grid
 │   └── run_failure_analysis.py  # Statistical stability and failure mode diagnostics
-├── tests/                       # 69 deterministic unit and property-based tests
+├── tests/                       # 74 deterministic unit and property-based tests
 ├── docs/                        # Research protocol, methodology, and frozen decisions
 └── reports/
     ├── research_report.md       # Comprehensive 12-section institutional research paper
@@ -119,17 +119,21 @@ python scripts/fetch_data.py
 ```
 *Note: Clean prices are persisted to local cache (`data/processed/close.parquet`).*
 
-### Single End-to-End Pipeline Command
-Execute data verification, pair screening, hedge fitting, backtest simulation, metrics calculation, and chart generation in a single command:
+### Pipeline Execution Modes
+Run the end-to-end pipeline in either standard cached mode or verification mode:
 ```bash
+# 1. Standard mode (reuses cached screening and frozen hedge parameters):
 python scripts/run_pipeline.py --config configs/test_run.yaml
+
+# 2. Verification mode (recomputes screening and hedge fits from close.parquet, verifies against frozen CSVs with rtol 1e-5, and never overwrites):
+python scripts/run_pipeline.py --config configs/test_run.yaml --recompute
 ```
 
 ### Run Test Suite
 Execute the deterministic test suite covering signal timing, execution lag, cost accounting, and statistical calculations:
 ```bash
 pytest -q
-# Output: 69 passed in ~6.0s
+# Output: 74 passed in ~6.0s
 ```
 
 ---

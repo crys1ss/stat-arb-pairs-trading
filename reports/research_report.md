@@ -198,9 +198,9 @@ Regressing daily returns on SPY ETF returns using Newey-West HAC standard errors
 | **Test** | 501 | -0.0318 | -2.66 | 0.0079 | 0.0199 | -0.1412 | +0.42% |
 | **Full Span** | 1,759 | **+0.0075** | **+0.61** | **0.5422** | **0.0028** | **+0.0528** | **+2.65%** |
 
-*Observation*: Over the full span, market beta was +0.0075 ($p = 0.5422$, $R^2 = 0.0028$). In test, beta was -0.0318.
+*Observation*: Across all periods, |beta| to SPY is small (ranging from 0.0075 to 0.0318) and $R^2$ is at most about 5 percent (0.0460 in train, 0.0028 full span). However, the Newey-West HAC $t$-statistic is statistically significant with negative beta in validation ($\beta = -0.0233$, $t = -2.31$, $p = 0.0211$) and test ($\beta = -0.0318$, $t = -2.66$, $p = 0.0079$), while not significant in train ($t = +1.43$, $p = 0.1539$) or full span ($\beta = +0.0075$, $t = +0.61$, $p = 0.5422$).
 
-*Interpretation*: The strategy achieved robust market neutrality. Drawdown was driven by idiosyncratic spread failure rather than broad market beta.
+*Interpretation*: While beta is not statistically zero across all periods, its economic magnitude remains small ($|\beta| \le 0.0318$, $R^2 \le 4.60\%$). Drawdown was driven primarily by idiosyncratic spread breakdown rather than broad market directionality.
 
 ### Cointegration Decay & CUSUM Structural Breaks
 Out-of-sample Engle-Granger tests on test data and OLS-residual CUSUM tests (`breaks_cusumolsresid`, ddof=2) over 2018–2024:
@@ -247,7 +247,7 @@ An 84-run parameter grid was pre-committed and evaluated without altering baseli
 | **Entry / Exit** | $z_{\text{entry}} \in \{1.5, 2.0, 2.5\}$, $z_{\text{exit}} \in \{0.0, 0.5, 1.0\}$ | At baseline $z_{\text{entry}} = 2.0$, all exit variations produce negative net P&L (-$3,387 to -$9,563). Tighter entry at $z_{\text{entry}} = 1.5$ increases trade frequency and flips net P&L positive (+$16,603 to +$49,742, Sharpe +0.29 to +0.82). Higher entry ($z = 2.5$) yields -$6,613 to -$9,681. |
 | **Friction Costs** | Cost $\in \{0, 5, 10, 20\}$ bps; Borrow $\in \{0, 50, 200\}$ bps/year | Zero friction ($C=0$) yields positive net P&L (+$7,989.53). At 5 bps, net P&L is near zero (+$188.13). At 10 bps (baseline) and 20 bps, net P&L is negative (-$7,613 and -$23,216). |
 | **Holding Horizon** | Max hold $\in \{15, 30, 60\}$ days | 15 days yields -$14,146.43. 30 days yields -$7,613.28. 60 days flips net P&L positive to **+$18,021.64** (Sharpe +0.3246, win rate 60.87%), giving slow-moving spreads time to revert. |
-| **Execution Lag** | Lag $\in \{1, 2\}$ trading days | Lag 1 yields -$7,613.28. Lag 2 yields **+$4,886.37** (Sharpe +0.1237), filtering false breakout entries. |
+| **Execution Lag** | Lag $\in \{1, 2\}$ trading days | Observation: Lag 1 yields -$7,613.28 (39 trades, Sharpe -0.1189). Lag 2 yields **+$7,126.53** (39 trades, gross +$25,309.07, Sharpe +0.1443). |
 | **Z-Score Method** | Fixed in-sample vs. Causal rolling 60-day | Rolling 60-day z-score flipped net P&L positive to **+$19,034.76** (Sharpe +0.3660, win rate 63.64%), adapting to post-COVID volatility shifts. |
 
 ![Entry vs Exit Z-Score Parameter Heatmap](figures/sensitivity_entry_exit_heatmap.png)
@@ -289,7 +289,7 @@ Break-even cost per side per leg ($C^*$, where Net P&L = $0.00$):
 ### Conclusion
 This empirical study demonstrates that while cointegration pairs trading is statistically grounded and profitable in-sample, **generating durable out-of-sample alpha after transaction friction is exceptionally challenging**.
 
-Failure was not driven by market beta (strategy beta was +0.0075), but by **temporal parameter instability, cointegration decay, and friction drag**. Out-of-sample pairs ceased to mean-revert, causing fixed-horizon timeout exits to incur severe losses that erased all gross trading edge.
+Failure was not driven by broad market movements (|beta| <= 0.0318, full-span beta +0.0075), but by **temporal parameter instability, cointegration decay, and friction drag**. Out-of-sample pairs ceased to mean-revert, causing fixed-horizon timeout exits to incur severe losses that erased all gross trading edge.
 
 ### Future Work
 1. **Kalman Filter Dynamic Hedge Ratios**: Replace static OLS with state-space models to track evolving hedge ratios.

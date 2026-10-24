@@ -345,3 +345,41 @@ def test_lag_2_shifts_fills_by_exactly_one_more_bar():
     assert res_lag2.daily.loc[dates[2], "trade_cost"] > 0.0
     assert res_lag2.daily.loc[dates[4], "trade_cost"] == 0.0
     assert res_lag2.daily.loc[dates[5], "trade_cost"] > 0.0
+
+
+def test_lag2_back_to_back_signals_each_become_a_trade():
+    # Signal machine: enter t=1, exit t=2, re-enter t=3, exit t=7. With lag 2 every signal must
+    # fill 2 bars later: two round trips, not one long position (engine must not key off its own position).
+    from src.signals import generate_signals
+
+    z = pd.Series([0, 2.5, 0.0, 2.5, 2.5, 2.5, 2.5, 0.0, 0.0, 0.0, 0.0, 0.0])
+    dates = pd.date_range("2022-01-03", periods=len(z), freq="B")
+    sig = generate_signals(z, 2.0, 0.5, 30)
+    sig.index = dates
+    p_a = pd.Series(100.0 + np.arange(len(z)), index=dates)
+    p_b = pd.Series(100.0, index=dates)
+    cfg = {"commission_bps": 5, "slippage_bps": 5, "borrow_bps_annual": 50}
+
+    res = backtest_pair(p_a, p_b, sig, beta=1.0, capital=100_000.0, cost_config=cfg, execution_lag=2)
+    assert list(res.trades["entry_date"]) == [dates[3], dates[5]]
+    assert list(res.trades["exit_date"]) == [dates[4], dates[9]]
+
+
+def test_entry_fill_on_final_bar_does_not_fill():
+    from src.signals import generate_signals
+
+    # n = 5 bars. Entry signal occurs on bar n-2 (bar 3).
+    z = pd.Series([0.0, 0.0, 0.0, 2.5, 2.5])
+    dates = pd.date_range("2022-01-03", periods=len(z), freq="B")
+    sig = generate_signals(z, 2.0, 0.5, 30)
+    sig.index = dates
+    p_a = pd.Series([100.0] * len(z), index=dates)
+    p_b = pd.Series([100.0] * len(z), index=dates)
+    cfg = {"commission_bps": 5, "slippage_bps": 5, "borrow_bps_annual": 50}
+
+    # With lag 1, fill would be scheduled for bar 4 (final bar n-1).
+    res = backtest_pair(p_a, p_b, sig, beta=1.0, capital=100_000.0, cost_config=cfg, execution_lag=1)
+    assert len(res.trades) == 0
+    assert (res.daily["trade_cost"] == 0.0).all()
+    assert (res.daily["position"] == 0).all()
+    assert res.daily["trade_cost"].sum() == (res.trades["trade_cost"].sum() if len(res.trades) > 0 else 0.0)

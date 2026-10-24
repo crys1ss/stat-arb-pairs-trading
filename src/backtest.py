@@ -211,9 +211,10 @@ def backtest_pair(
     curr_trade_gross = 0.0
     curr_trade_borrow = 0.0
 
-    # Pending execution state (due to execution_lag >= 1)
-    pending_entry: Optional[Dict[str, Any]] = None
-    pending_exit: Optional[Dict[str, Any]] = None
+    # Pending fills (FIFO). Scheduled from the signal flags alone, never from this engine's own
+    # position, so execution_lag >= 2 stays in step with the signal state machine.
+    pending_entries: list = []
+    pending_exits: list = []
 
     trade_records = []
 
@@ -242,18 +243,18 @@ def backtest_pair(
         exit_sig_date = None
 
         if in_pos:
-            if pending_exit is not None and pending_exit["fill_idx"] == t:
+            if pending_exits and pending_exits[0]["fill_idx"] == t:
+                pending_exit = pending_exits.pop(0)
                 exit_now = True
                 exit_reason_str = pending_exit["exit_reason"]
                 exit_sig_date = dates[pending_exit["signal_idx"]]
-                pending_exit = None
             elif t == n - 1:
                 # Force-close open position on the final bar of the period
                 exit_now = True
-                if pending_exit is not None:
+                if pending_exits:
+                    pending_exit = pending_exits.pop(0)
                     exit_reason_str = pending_exit["exit_reason"]
                     exit_sig_date = dates[pending_exit["signal_idx"]]
-                    pending_exit = None
                 else:
                     exit_reason_str = "period_end"
                     exit_sig_date = dates[t]
@@ -302,7 +303,8 @@ def backtest_pair(
             curr_short_notional = 0.0
 
         # (b) Check if a scheduled entry fills at close t
-        if not in_pos and pending_entry is not None and pending_entry["fill_idx"] == t:
+        if not in_pos and t < n - 1 and pending_entries and pending_entries[0]["fill_idx"] == t:
+            pending_entry = pending_entries.pop(0)
             # Do not fill if on the very last bar without room to hold
             fill_p_a = p_a_vals[t]
             fill_p_b = p_b_vals[t]
@@ -331,25 +333,22 @@ def backtest_pair(
             curr_entry_p_b = fill_p_b
             curr_trade_gross = 0.0
             curr_trade_borrow = 0.0
-            pending_entry = None
 
         # -------------------------------------------------------------
         # 3. Schedule new signals emitted at CLOSE of bar t
         # -------------------------------------------------------------
-        if in_pos and pending_exit is None:
-            if bool(exit_flags[t]):
-                pending_exit = {
-                    "fill_idx": t + lag,
-                    "signal_idx": t,
-                    "exit_reason": exit_reasons[t] if exit_reasons[t] is not None else "signal_exit",
-                }
-        elif not in_pos and pending_entry is None:
-            if bool(entry_flags[t]):
-                pending_entry = {
-                    "fill_idx": t + lag,
-                    "signal_idx": t,
-                    "direction": states[t],
-                }
+        if bool(exit_flags[t]):
+            pending_exits.append({
+                "fill_idx": t + lag,
+                "signal_idx": t,
+                "exit_reason": exit_reasons[t] if exit_reasons[t] is not None else "signal_exit",
+            })
+        if bool(entry_flags[t]):
+            pending_entries.append({
+                "fill_idx": t + lag,
+                "signal_idx": t,
+                "direction": states[t],
+            })
 
         # -------------------------------------------------------------
         # 4. Finalize bar daily metrics

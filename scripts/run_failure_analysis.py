@@ -174,13 +174,18 @@ def write_failure_analysis_report(
         f.write("The quantitative diagnostics above establish four fundamental conclusions regarding why ")
         f.write("the baseline cointegration strategy succeeded in-sample but deteriorated out-of-sample:\n\n")
 
-        f.write("1. **Complete Absence of Market Directionality Risk (|Beta| ≈ 0)**:  \n")
+        f.write("1. **Market Exposure & Beta Profile**:  \n")
+        val_mkt = mkt_df[mkt_df["period"] == "validation"].iloc[0]
+        train_mkt = mkt_df[mkt_df["period"] == "train"].iloc[0]
         f.write(
-            f"Across all periods, the strategy's market beta to SPY was minimal "
-            f"(Test Beta = {test_mkt['market_beta']:+.4f}, p = {test_mkt['p_value']:.4f}; "
-            f"Full Span Beta = {full_mkt['market_beta']:+.4f}, R² = {full_mkt['r_squared']:.4f}). "
-            f"The out-of-sample drawdown was not driven by broad equity market directionality or systematic market beta, "
-            f"confirming that dollar-neutral pair weighting successfully isolated idiosyncratic spread dynamics.\n\n"
+            f"Across all periods, |beta| to SPY is small (ranging from {mkt_df['market_beta'].abs().min():.4f} to {mkt_df['market_beta'].abs().max():.4f}) "
+            f"and R² is at most about 5 percent ({mkt_df['r_squared'].max() * 100:.2f}% in train). "
+            f"However, the Newey-West HAC t-stat is statistically significant with negative beta in validation "
+            f"(beta = {val_mkt['market_beta']:+.4f}, t = {val_mkt['hac_tstat_5lags']:+.2f}, p = {val_mkt['p_value']:.4f}) "
+            f"and test (beta = {test_mkt['market_beta']:+.4f}, t = {test_mkt['hac_tstat_5lags']:+.2f}, p = {test_mkt['p_value']:.4f}), "
+            f"while not significant in train (beta = {train_mkt['market_beta']:+.4f}, t = {train_mkt['hac_tstat_5lags']:+.2f}, p = {train_mkt['p_value']:.4f}) "
+            f"or full span (beta = {full_mkt['market_beta']:+.4f}, t = {full_mkt['hac_tstat_5lags']:+.2f}, p = {full_mkt['p_value']:.4f}, R² = {full_mkt['r_squared']:.4f}). "
+            f"While beta is not statistically zero across all periods, the small absolute magnitude of |beta| indicates drawdown was driven primarily by idiosyncratic spread breakdown rather than broad market directionality.\n\n"
         )
 
         f.write("2. **Structural Parameter Instability & Cointegration Decay**:  \n")
