@@ -1,0 +1,13 @@
+metric,baseline_val_0d,cooldown_val_20d,difference
+Net P&L ($),4903.47,17914.77,13011.3
+Gross P&L ($),16082.34,24900.61,8818.27
+Total Friction / Costs ($),11178.86,6985.84,-4193.02
+Net Sharpe Ratio,0.1537,0.6319,0.4782
+Number of Trades,24.0,15.0,-9.0
+Win Rate (%),62.5,53.33,-9.17
+Max Drawdown (%),2.92,2.0,-0.91
+Pair Net P&L: BAC_PNC ($),19424.12,17214.12,-2210.01
+Pair Net P&L: MDLZ_PG ($),6617.56,6617.56,0.0
+Pair Net P&L: MDLZ_PEP ($),-2257.15,-380.33,1876.82
+Pair Net P&L: COP_DVN ($),-35629.83,-18899.01,16730.82
+Pair Net P&L: COP_CVX ($),16748.77,13362.43,-3386.34

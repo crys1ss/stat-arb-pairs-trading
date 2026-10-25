@@ -82,6 +82,7 @@ def main():
             exit_z=cfg.signals.exit_z,
             max_hold_days=cfg.signals.max_hold_days,
             stop_z=cfg.signals.stop_z,
+            cooldown_days=getattr(cfg.signals, "cooldown_days", 0),
         )
 
         n_entries = int(sig_df["entry_flag"].sum())

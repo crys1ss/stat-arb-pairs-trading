@@ -1,9 +1,9 @@
 # Statistical Arbitrage in Equity Markets: Cointegration-Based Pairs Trading with Out-of-Sample Validation
 
-**Author:** Tanay (@crys1ss) · Quantitative Research  
+**Author:** Aatif Shaikh ([@crys1ss](https://github.com/crys1ss))  
 **Date:** October 2026  
 **Status:** Completed Research Report (Post-Test Evaluation & Failure Analysis)  
-**Baseline SHA-256 Hashes:** `configs/baseline.yaml` (`40f7c5f8...`), `reports/results/selected_pairs.csv` (`52c64903...`)  
+**Baseline SHA-256 Hashes (LF):** `configs/baseline.yaml` (`40f7c5f8...`), `reports/results/selected_pairs.csv` (`6952604f...` [LF normalized; original Windows CRLF was `52c64903...`, see docs/FROZEN_DECISIONS.md §9.1])  
 **Git Release Tag:** `frozen-v1`  
 
 ---
@@ -72,7 +72,7 @@ Testing $m = 45$ intra-sector pairs simultaneously inflates family-wise error ra
 $$\tilde{p}_{(i)} = \max_{k \le i} \min\left(1.0, \, (m - k + 1) \cdot p_{(k)}\right)$$
 
 ### Step 4: Ornstein-Uhlenbeck Half-Life Filter
-Spread residuals were fitted to an AR(1) process $\Delta s_t = \phi s_{t-1} + \mu + \eta_t$ to compute half-life $t_{1/2} = -\ln(2)/\ln(1 + \phi)$. Pairs were constrained to $t_{1/2} \in [1.0, 60.0]$ days.
+Spread residuals were fitted to an AR(1) regression $\Delta s_t = \gamma s_{t-1} + \mu + \epsilon_t$ to compute half-life $t_{1/2} = -\ln(2)/\gamma$ (for $\gamma < 0$). Pairs were constrained to $t_{1/2} \in [1.0, 60.0]$ days.
 
 ![Representative Pair Spread Dynamics](figures/BAC_PNC_spread_bands.png)
 
@@ -241,6 +241,8 @@ The 5 worst trade losses across the backtest:
 
 An 84-run parameter grid was pre-committed and evaluated without altering baseline decisions:
 
+> **Methodological Note on Parameter Sensitivity**: All 84 sensitivity variants were evaluated across the 2023–2024 test period; therefore, the variants that turned positive (such as rolling 60-day z-scores or 60-day holding horizons) represent hypotheses for future work, not proven improvements or post-hoc fixes.
+
 ### Sensitivity Analysis Summary
 
 | Dimension | Parameters Tested | Test Period Impact Summary |
@@ -264,7 +266,7 @@ Break-even cost per side per leg ($C^*$, where Net P&L = $0.00$):
 
 *Observation*: Test break-even friction is **5.12 bps** per side per leg.
 
-*Interpretation*: Because realistic institutional trading costs range from 5.0 to 10.0 bps per side, the strategy possesses zero economic edge out-of-sample under baseline parameters.
+*Interpretation*: Because realistic trading costs range from 5.0 to 10.0 bps per side, the strategy possesses zero economic edge out-of-sample under baseline parameters.
 
 ![Transaction Cost Sensitivity & Break-Even Curves](figures/sensitivity_cost_curve.png)
 
@@ -303,7 +305,48 @@ This report represents academic quantitative simulation. Past performance does n
 
 ---
 
-## 13. Appendix: Number Verification Audit Table
+## 13. v1.1 Addendum: Re-entry Cooldown (Validation-Only Evaluation)
+
+### Motivation & Empirical Problem
+Detailed post-mortem analysis of the worst trades revealed a mechanical flaw in the baseline signal engine (`src/signals.py`): when a trade reaches the 30-day time-stop limit (`max_hold`), the position is unconditionally closed at day $t$. However, if the spread remains diverged ($|z_t| \ge 2.0$), the causal state machine immediately reopened the exact same losing trade on day $t+1$. 
+
+In the test period, this caused repeated churn into `COP_DVN` (e.g., exit 2023-08-09, re-entry 2023-08-10). In the validation period (2022), `COP_DVN` similarly drained portfolio equity.
+
+### The Mechanism
+An optional parameter `cooldown_days: int = 0` was introduced to `generate_signals()`. When a trade terminates via `"max_hold"` or `"stop"`, new entries for that pair are blocked for `cooldown_days` bars. Normal mean-reversion exits (`reason == "mean_revert"`) do not trigger a cooldown. The default `cooldown_days = 0` preserves 100% mathematical parity with frozen v1 baseline results.
+
+### Clean Evaluation Rules
+Per strict quantitative research protocols:
+- **No Test Set Pollution**: The 2023–2024 out-of-sample test period was **NOT** evaluated.
+- **Validation Evaluation Only**: The experiment was executed strictly on the 2022 validation period using `configs/cooldown_validation.yaml` (`cooldown_days: 20`).
+- **Target File**: Results are persisted to `reports/results/cooldown_validation_comparison.csv`.
+
+### Empirical Results (2022 Validation Period)
+
+| Metric | Baseline (0-day Cooldown) | Cooldown (20-day Window) | Difference / Impact |
+| :--- | :---: | :---: | :---: |
+| **Net P&L ($)** | +$4,903.47 | **+$17,914.77** | **+$13,011.30** |
+| **Gross P&L ($)** | +$16,082.34 | **+$24,900.61** | +$8,818.27 |
+| **Total Friction ($)** | $11,178.86 | **$6,985.84** | **-$4,193.02** |
+| **Net Sharpe Ratio** | 0.1537 | **0.6319** | **+0.4782** |
+| **Total Trades** | 24 | **15** | -9 trades eliminated |
+| **Win Rate (%)** | 62.50% | **53.33%** | -9.17% |
+| **Max Drawdown (%)** | 2.92% | **2.00%** | -0.91% |
+| **Pair Net P&L: BAC_PNC** | +$19,424.12 | +$17,214.12 | -$2,210.01 |
+| **Pair Net P&L: MDLZ_PG** | +$6,617.56 | +$6,617.56 | $0.00 |
+| **Pair Net P&L: MDLZ_PEP** | -$2,257.15 | -$380.33 | +$1,876.82 |
+| **Pair Net P&L: COP_DVN** | -$35,629.83 | **-$18,899.01** | **+$16,730.82** |
+| **Pair Net P&L: COP_CVX** | +$16,748.77 | +$13,362.43 | -$3,386.34 |
+
+### Honest Quantitative Assessment
+1. **Targeted Loss Reduction**: The 20-day cooldown successfully prevented the state machine from immediately stepping in front of a runaway spread in `COP_DVN`, saving $16,730.82 in losses and $4,193.02 in unnecessary turnover friction. Net validation Sharpe rose from 0.15 to 0.63.
+2. **Partial Palliative, Not a Cure**: Even with the 20-day cooldown, `COP_DVN` still lost -$18,899.01. Pausing entries stops the bleeding, but it cannot manufacture cointegration where none existed ($p = 0.053$ in training).
+3. **Opportunity Cost**: In healthy pairs (`BAC_PNC` and `COP_CVX`), the cooldown blocked subsequent valid entries that would have generated positive returns (-$2,210.01 and -$3,386.34 respectively), lowering the portfolio win rate from 62.5% to 53.3%.
+4. **Research Status**: These validation gains remain an in-sample hypothesis relative to the locked 2023–2024 test window, confirming that trading broken pairs without structural filters remains the primary risk in statistical arbitrage. The 20-day cooldown was chosen once and not tuned. It was evaluated on the 2022 validation period only, so it should be confirmed on fresh 2025 data before being treated as a real improvement.
+
+---
+
+## 14. Appendix: Number Verification Audit Table
 
 Every metric cited in this report is cross-referenced below to its underlying results file:
 
@@ -357,3 +400,5 @@ Every metric cited in this report is cross-referenced below to its underlying re
 | **CUSUM Test Statistics** | 5.99 to 13.05 | `reports/results/structural_breaks.csv` | `cusum_statistic` column |
 | **CUSUM p-values** | 0.000000 ($p < 0.0001$) | `reports/results/structural_breaks.csv` | `p_value` column |
 | **Test Cointegration p-values** | 0.2068 to 0.9507 | `reports/results/cointegration_decay.csv` | `period=test, bidirectional_max_pval` |
+| **Validation Cooldown Net P&L (20d)** | +$17,914.77 | `reports/results/cooldown_validation_comparison.csv` | `cooldown_val_20d, metric=Net P&L ($)` |
+

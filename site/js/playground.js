@@ -25,7 +25,7 @@
     exit_z: 0.5,
     max_hold_days: 30,
     cost_per_side_bps: 10.0,
-    time_stop_cooldown_days: 0,
+    cooldown_days: 0,
   };
 
   async function loadPrices() {
@@ -47,7 +47,7 @@
       borrow_bps_annual: 50.0,
       execution_lag: 1,
       initial_capital: CAPITAL,
-      time_stop_cooldown_days: DEFAULTS.time_stop_cooldown_days,
+      cooldown_days: DEFAULTS.cooldown_days,
     });
     baselineResultsCache[period] = res;
     return res;
@@ -193,8 +193,8 @@
       narrative += `Lower friction of <b>${userOpts.cost_per_side_bps} bps</b> saved <b>${usd(Math.abs(diffCosts))}</b> in transaction costs. `;
     }
 
-    if (userOpts.time_stop_cooldown_days > 0) {
-      narrative += `A <b>${userOpts.time_stop_cooldown_days}-day re-entry cooldown</b> prevented immediately reopening failed pairs after time stops. `;
+    if (userOpts.cooldown_days > 0) {
+      narrative += `A <b>${userOpts.cooldown_days}-day re-entry cooldown</b> prevented immediately reopening failed pairs after time stops or stop exits. `;
     }
 
     if (diffNet > 500) {
@@ -226,7 +226,7 @@
       borrow_bps_annual: 50.0,
       execution_lag: 1,
       initial_capital: CAPITAL,
-      time_stop_cooldown_days: cooldown_days,
+      cooldown_days: cooldown_days,
     };
 
     const periodPrices = data.periods[currentPeriod];
@@ -308,8 +308,8 @@
         document.getElementById('sim-cost-bps-val').textContent = DEFAULTS.cost_per_side_bps.toFixed(1) + ' bps';
 
         if (document.getElementById('sim-cooldown')) {
-          document.getElementById('sim-cooldown').value = DEFAULTS.time_stop_cooldown_days;
-          document.getElementById('sim-cooldown-val').textContent = DEFAULTS.time_stop_cooldown_days + ' days';
+          document.getElementById('sim-cooldown').value = DEFAULTS.cooldown_days;
+          document.getElementById('sim-cooldown-val').textContent = DEFAULTS.cooldown_days + ' days';
         }
 
         runPlaygroundSimulation();

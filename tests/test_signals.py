@@ -173,17 +173,27 @@ def test_period_end_exit():
     assert sig_close.loc[2, "state"] == 0
 
 
-def test_time_stop_cooldown():
-    # Enter long at bar 0, hold for 2 days, exit on max_hold at bar 1 (max_hold_days=2).
-    # z remains at -2.5 (an entry level).
-    # With time_stop_cooldown_days = 2:
+def test_cooldown_days_zero_identical():
+    # cooldown_days=0 must produce identical output to default
+    rng = np.random.default_rng(12345)
+    z_seq = pd.Series(rng.standard_normal(100) * 2.0)
+    sig_default = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=10)
+    sig_zero = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=10, cooldown_days=0)
+    pd.testing.assert_frame_equal(sig_default, sig_zero)
+
+
+def test_cooldown_after_max_hold_and_stop():
+    # Long entered at bar 0, exits on max_hold at bar 1 (max_hold_days=2).
+    # z remains at -2.5 throughout bars 0..5.
+    # With cooldown_days=3:
     # Bar 0: Enter long (z = -2.5)
-    # Bar 1: max_hold exit (days_held=2). cooldown set to 2.
+    # Bar 1: max_hold exit (days_held=2). cooldown set to 3.
     # Bar 2: Cooldown bar 1 -> flat, no entry despite z = -2.5.
     # Bar 3: Cooldown bar 2 -> flat, no entry despite z = -2.5.
-    # Bar 4: Cooldown expired -> enters long!
-    z_seq = pd.Series([-2.5, -2.5, -2.5, -2.5, -2.5])
-    sig = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=2, time_stop_cooldown_days=2)
+    # Bar 4: Cooldown bar 3 -> flat, no entry despite z = -2.5.
+    # Bar 5: Cooldown expired -> enters long!
+    z_seq = pd.Series([-2.5, -2.5, -2.5, -2.5, -2.5, -2.5])
+    sig = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=2, cooldown_days=3)
 
     assert bool(sig.loc[0, "entry_flag"]) is True
     assert sig.loc[0, "state"] == 1
@@ -191,13 +201,55 @@ def test_time_stop_cooldown():
     assert sig.loc[1, "exit_reason"] == "max_hold"
     assert sig.loc[1, "state"] == 0
 
-    # Bars 2 and 3 must be blocked by cooldown
+    # Bars 2, 3, 4 must be blocked by cooldown
+    for bar in [2, 3, 4]:
+        assert bool(sig.loc[bar, "entry_flag"]) is False, f"Bar {bar} should be blocked by cooldown"
+        assert sig.loc[bar, "state"] == 0
+
+    # Bar 5 re-enters after cooldown expires
+    assert bool(sig.loc[5, "entry_flag"]) is True
+    assert sig.loc[5, "state"] == 1
+
+
+def test_mean_revert_does_not_trigger_cooldown():
+    # Bar 0: Enter long at z = -2.2
+    # Bar 1: Reverts to z = 0.0 -> exits on mean_revert
+    # Bar 2: Diverges again to z = 2.4 (entry level)
+    # With cooldown_days=5, bar 2 MUST enter because mean_revert never triggers a cooldown!
+    z_seq = pd.Series([-2.2, 0.0, 2.4, 1.8])
+    sig = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=30, cooldown_days=5)
+
+    assert bool(sig.loc[0, "entry_flag"]) is True
+    assert sig.loc[0, "state"] == 1
+
+    assert bool(sig.loc[1, "exit_flag"]) is True
+    assert sig.loc[1, "exit_reason"] == "mean_revert"
+    assert sig.loc[1, "state"] == 0
+
+    # Bar 2 should immediately enter short despite cooldown_days=5
+    assert bool(sig.loc[2, "entry_flag"]) is True
+    assert sig.loc[2, "state"] == -1
+
+
+def test_stop_exit_triggers_cooldown():
+    # Enter long at bar 0 (z = -2.2). At bar 1, z drops to -3.8 (violating stop_z = 3.5).
+    # Exits on 'stop'. With cooldown_days=2, bar 2 must be blocked even if z = -2.5.
+    z_seq = pd.Series([-2.2, -3.8, -2.5, -2.5, -2.5])
+    sig = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=30, stop_z=3.5, cooldown_days=2)
+
+    assert bool(sig.loc[0, "entry_flag"]) is True
+    assert bool(sig.loc[1, "exit_flag"]) is True
+    assert sig.loc[1, "exit_reason"] == "stop"
+
+    # Bar 2 is in cooldown
     assert bool(sig.loc[2, "entry_flag"]) is False
     assert sig.loc[2, "state"] == 0
+
+    # Bar 3 is in cooldown
     assert bool(sig.loc[3, "entry_flag"]) is False
     assert sig.loc[3, "state"] == 0
 
-    # Bar 4 re-enters
+    # Bar 4 enters after cooldown expires
     assert bool(sig.loc[4, "entry_flag"]) is True
     assert sig.loc[4, "state"] == 1
 

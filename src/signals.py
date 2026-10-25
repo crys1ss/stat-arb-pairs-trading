@@ -14,7 +14,7 @@ def generate_signals(
     max_hold_days: int,
     stop_z: Optional[float] = None,
     close_at_end: bool = False,
-    time_stop_cooldown_days: int = 0,
+    cooldown_days: int = 0,
 ) -> pd.DataFrame:
     """Generate deterministic, causal pairs-trading signals via a state machine.
 
@@ -27,6 +27,7 @@ def generate_signals(
     State Machine Rules:
     --------------------
     1. When flat (state == 0):
+       - If cooldown_remaining > 0: decrement counter and remain flat (no entries).
        - If z_t >= entry_z: enter short spread (state -> -1).
        - If z_t <= -entry_z: enter long spread (state -> +1).
        - A NaN z_t precludes any new entry.
@@ -46,6 +47,7 @@ def generate_signals(
        - No re-entry on the same bar as an exit.
        - No overlapping positions.
        - Pure causality: state at bar t depends strictly on z[0..t].
+       - If exit reason is 'max_hold' or 'stop', cooldown_days blocks entries for that many bars.
 
     Parameters
     ----------
@@ -62,6 +64,8 @@ def generate_signals(
     close_at_end : bool, default False
         Whether to liquidate open positions on the final bar with reason 'period_end'.
         Default is False to strictly preserve truncation causality across arbitrary sub-periods.
+    cooldown_days : int, default 0
+        Number of bars to block new entries after a 'max_hold' or 'stop' exit.
 
     Returns
     -------
@@ -174,8 +178,8 @@ def generate_signals(
                 # Reset state to flat; strictly no re-entry on exit bar
                 current_state = 0
                 days_held = 0
-                if reason == "max_hold" and time_stop_cooldown_days > 0:
-                    cooldown_remaining = time_stop_cooldown_days
+                if reason in ("max_hold", "stop") and cooldown_days > 0:
+                    cooldown_remaining = cooldown_days
             else:
                 state_arr[t] = current_state
                 days_held_arr[t] = days_held

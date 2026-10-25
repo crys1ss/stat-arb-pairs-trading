@@ -445,6 +445,7 @@ def main():
                 max_hold_days=cfg.signals.max_hold_days,
                 stop_z=cfg.signals.stop_z,
                 close_at_end=True,
+                cooldown_days=getattr(cfg.signals, "cooldown_days", 0),
             )
             z_dict[pair_name] = z
             sig_dict[pair_name] = sig_df

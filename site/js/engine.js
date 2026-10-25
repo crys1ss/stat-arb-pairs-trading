@@ -35,7 +35,7 @@
     const borrow_bps_annual = options.borrow_bps_annual !== undefined ? options.borrow_bps_annual : 50.0;
     const execution_lag = options.execution_lag !== undefined ? options.execution_lag : 1;
     const initial_capital = options.initial_capital !== undefined ? options.initial_capital : 1000000.0;
-    const time_stop_cooldown_days = options.time_stop_cooldown_days !== undefined ? options.time_stop_cooldown_days : 0;
+    const cooldown_days = options.cooldown_days !== undefined ? options.cooldown_days : 0;
 
     const dates = periodPrices.dates;
     const n = dates.length;
@@ -72,7 +72,7 @@
         cost_per_side_bps: cost_per_side_bps,
         borrow_bps_annual: borrow_bps_annual,
         execution_lag: execution_lag,
-        time_stop_cooldown_days: time_stop_cooldown_days,
+        cooldown_days: cooldown_days,
       });
 
       pairResults.push(res);
@@ -168,7 +168,7 @@
     const costRate = (cfg.cost_per_side_bps / 10000.0);
     const dailyBorrowRate = (cfg.borrow_bps_annual / 10000.0) / 252.0;
     const lag = cfg.execution_lag;
-    const time_stop_cooldown_days = cfg.time_stop_cooldown_days || 0;
+    const cooldown_days = cfg.cooldown_days || 0;
 
     // 1. Compute spread & z-score
     const z = new Float64Array(n);
@@ -251,8 +251,8 @@
           stateArr[t] = 0;
           currentState = 0;
           daysHeld = 0;
-          if (reason === 'max_hold' && time_stop_cooldown_days > 0) {
-            cooldownRemaining = time_stop_cooldown_days;
+          if ((reason === 'max_hold' || reason === 'stop') && cooldown_days > 0) {
+            cooldownRemaining = cooldown_days;
           }
         } else {
           stateArr[t] = currentState;
