@@ -25,6 +25,7 @@
     exit_z: 0.5,
     max_hold_days: 30,
     cost_per_side_bps: 10.0,
+    time_stop_cooldown_days: 0,
   };
 
   async function loadPrices() {
@@ -46,6 +47,7 @@
       borrow_bps_annual: 50.0,
       execution_lag: 1,
       initial_capital: CAPITAL,
+      time_stop_cooldown_days: DEFAULTS.time_stop_cooldown_days,
     });
     baselineResultsCache[period] = res;
     return res;
@@ -191,6 +193,10 @@
       narrative += `Lower friction of <b>${userOpts.cost_per_side_bps} bps</b> saved <b>${usd(Math.abs(diffCosts))}</b> in transaction costs. `;
     }
 
+    if (userOpts.time_stop_cooldown_days > 0) {
+      narrative += `A <b>${userOpts.time_stop_cooldown_days}-day re-entry cooldown</b> prevented immediately reopening failed pairs after time stops. `;
+    }
+
     if (diffNet > 500) {
       narrative += `Overall, these settings improved Net P&L by <b>${usd(diffNet, true)}</b> compared to the research baseline.`;
     } else if (diffNet < -500) {
@@ -209,6 +215,8 @@
     const exit_z = parseFloat(document.getElementById('sim-exit-z').value);
     const max_hold = parseInt(document.getElementById('sim-max-hold').value, 10);
     const cost_bps = parseFloat(document.getElementById('sim-cost-bps').value);
+    const cooldown_el = document.getElementById('sim-cooldown');
+    const cooldown_days = cooldown_el ? parseInt(cooldown_el.value, 10) : 0;
 
     const userOpts = {
       entry_z: entry_z,
@@ -218,6 +226,7 @@
       borrow_bps_annual: 50.0,
       execution_lag: 1,
       initial_capital: CAPITAL,
+      time_stop_cooldown_days: cooldown_days,
     };
 
     const periodPrices = data.periods[currentPeriod];
@@ -274,6 +283,7 @@
     bindSlider('sim-exit-z', 'sim-exit-z-val', (v) => parseFloat(v).toFixed(1));
     bindSlider('sim-max-hold', 'sim-max-hold-val', (v) => v + ' days');
     bindSlider('sim-cost-bps', 'sim-cost-bps-val', (v) => parseFloat(v).toFixed(1) + ' bps');
+    bindSlider('sim-cooldown', 'sim-cooldown-val', (v) => v + ' days');
 
     // Run button
     const runBtn = document.getElementById('sim-run-btn');
@@ -296,6 +306,11 @@
 
         document.getElementById('sim-cost-bps').value = DEFAULTS.cost_per_side_bps;
         document.getElementById('sim-cost-bps-val').textContent = DEFAULTS.cost_per_side_bps.toFixed(1) + ' bps';
+
+        if (document.getElementById('sim-cooldown')) {
+          document.getElementById('sim-cooldown').value = DEFAULTS.time_stop_cooldown_days;
+          document.getElementById('sim-cooldown-val').textContent = DEFAULTS.time_stop_cooldown_days + ' days';
+        }
 
         runPlaygroundSimulation();
       });

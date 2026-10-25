@@ -197,6 +197,7 @@ def run_portfolio(
             max_hold_days=cfg.signals.max_hold_days,
             stop_z=cfg.signals.stop_z,
             close_at_end=False,  # Causal signal generation; period-end liquidation handled by backtest engine
+            time_stop_cooldown_days=getattr(cfg.signals, "time_stop_cooldown_days", 0),
         )
 
         # Run single-pair backtest simulation

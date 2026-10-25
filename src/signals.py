@@ -14,6 +14,7 @@ def generate_signals(
     max_hold_days: int,
     stop_z: Optional[float] = None,
     close_at_end: bool = False,
+    time_stop_cooldown_days: int = 0,
 ) -> pd.DataFrame:
     """Generate deterministic, causal pairs-trading signals via a state machine.
 
@@ -89,6 +90,7 @@ def generate_signals(
 
     current_state = 0
     days_held = 0
+    cooldown_remaining = 0
 
     for t in range(n):
         zt = z_vals[t]
@@ -96,6 +98,12 @@ def generate_signals(
 
         if current_state == 0:
             # We are currently FLAT
+            if cooldown_remaining > 0:
+                cooldown_remaining -= 1
+                state_arr[t] = 0
+                days_held_arr[t] = 0
+                continue
+
             if not is_nan:
                 if zt >= entry_z:
                     # Enter short spread
@@ -166,6 +174,8 @@ def generate_signals(
                 # Reset state to flat; strictly no re-entry on exit bar
                 current_state = 0
                 days_held = 0
+                if reason == "max_hold" and time_stop_cooldown_days > 0:
+                    cooldown_remaining = time_stop_cooldown_days
             else:
                 state_arr[t] = current_state
                 days_held_arr[t] = days_held

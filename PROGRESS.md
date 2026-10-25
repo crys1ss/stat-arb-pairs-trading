@@ -43,6 +43,18 @@
 - Tested: `tests/test_frozen_hashes.py` (2 passed), `test_backtest.py` (10 passed), `test_portfolio.py` (8 passed). Full test suite: 74 passed (`pytest -q`).
 - Reproducibility: `python scripts/run_pipeline.py --config configs/test_run.yaml --recompute` printed MATCH with 0 file changes; baseline outputs identical to the cent (train $212,323.62, val $4,903.47, test -$7,613.28); test lag 2 updated to +$7,126.53 (39 trades).
 
+### Day 16: Reviewer Weaknesses Addressed & Honest Quantitative Framing
+- Implemented: Added `time_stop_cooldown_days` to `SignalsConfig` (`src/config.py`), state machine (`src/signals.py`), `simulate_portfolio` (`src/portfolio.py`), and browser simulator (`site/js/engine.js`, `site/js/playground.js`, `site/index.html`).
+- Validation-Only Evaluation: Evaluated cooldown strictly on the validation period (2022) to avoid test set snooping. Introducing a 5-day cooldown eliminated immediate re-entries into broken pairs, boosting validation Net P&L from +$4,904.17 (24 trades) to +$45,430.03 (20 trades).
+- Restated Headline: Honestly reframed research conclusion across README, research report, and demo site: "No statistically valid pairs were found in screening; trading the fallback basket lost money after real costs" (0 pairs survived Holm-Bonferroni; COP_DVN p=0.053 and COP_CVX p=0.090 failed even uncorrected 5% testing). Cointegration never existed for COP_DVN.
+- Addressed Inconsistencies:
+  1. Author attributed to Tanay (@crys1ss) and repo clone URL set to `github.com/crys1ss/stat-arb-pairs-trading.git`.
+  2. Overclaims dropped: removed "production-grade" and "institutional research paper".
+  3. Market beta clarified as "economically negligible" (|beta| <= 0.0318) rather than claiming "robust neutrality", noting t = -2.66 in test.
+  4. Screening funnel table rewritten to present independent filters (27 half-life, 3 raw p, 0 Holm) rather than a false 3->0->27 funnel.
+  5. Half-life approximation (-ln(2)/gamma) and modeling disclosures (borrow on entry notional, 29-day max hold) documented explicitly.
+- Tests: Added `test_time_stop_cooldown` in `tests/test_signals.py` (75 passed). Parity verified: `node site/tests/parity.js` passed (< $1 diff on all 95 trades).
+
 ## Next
 - Configure GitHub Pages build source to GitHub Actions under repo Settings > Pages.
 - Add simulation link (`https://crys1ss.github.io/stat-arb-pairs-trading/`) to GitHub repository "About" website field.

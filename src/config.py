@@ -109,6 +109,7 @@ class SignalsConfig:
     max_hold_days: int
     stop_z: Optional[float] = None
     z_score_baseline: str = "training_fixed"
+    time_stop_cooldown_days: int = 0
 
     def validate(self) -> None:
         if self.entry_z <= 0.0:
@@ -121,6 +122,10 @@ class SignalsConfig:
             )
         if self.max_hold_days <= 0:
             raise ValueError(f"max_hold_days must be positive, got {self.max_hold_days}")
+        if self.time_stop_cooldown_days < 0:
+            raise ValueError(
+                f"time_stop_cooldown_days must be non-negative, got {self.time_stop_cooldown_days}"
+            )
         if self.stop_z is not None and self.stop_z <= self.entry_z:
             raise ValueError(
                 f"stop_z ({self.stop_z}) must be strictly greater than entry_z ({self.entry_z})"

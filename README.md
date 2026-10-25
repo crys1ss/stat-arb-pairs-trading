@@ -1,6 +1,6 @@
 # Statistical Arbitrage in Equity Markets: Cointegration-Based Pairs Trading with Out-of-Sample Validation
 
-[![Unit Tests](https://img.shields.io/badge/pytest-74%20passed-brightgreen.svg)]()
+[![Unit Tests](https://img.shields.io/badge/pytest-75%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)]()
 [![Research Status](https://img.shields.io/badge/research-frozen--v1-orange.svg)]()
@@ -12,7 +12,7 @@
 
 [![Pairs Trading Replay & Simulator](docs/img/replay.png)](https://crys1ss.github.io/stat-arb-pairs-trading/)
 
-A modular, production-grade quantitative research framework evaluating whether cointegration-based pairs trading generates robust risk-adjusted alpha in U.S. large-cap equities after realistic transaction friction, execution delays, and market structural breaks.
+A modular, reproducible quantitative research framework evaluating whether cointegration-based pairs trading generates positive risk-adjusted returns in U.S. large-cap equities after realistic transaction friction, execution delays, and market structural breaks.
 
 ---
 
@@ -32,8 +32,9 @@ Evaluated across an untouched 2-year out-of-sample window (501 active trading da
 * **Gross Trading P&L**: **+$10,586.12** (Gross Sharpe: `0.20`, Gross Return: `+1.06%`)
 * **Net P&L After Friction**: **-$7,613.28** (Net Sharpe: `-0.12`, Cost Drag: `171.92%`)
 * **Break-Even Cost Threshold**: **5.12 bps** per side per leg (vs. `10.00 bps` baseline execution friction)
+* **Screening Reality**: **0 of 45 pairs** survived Holm-Bonferroni correction in training; **2 of 5 fallback picks** failed even uncorrected 5% testing (`COP_DVN` $p=0.053$, `COP_CVX` $p=0.090$).
 
-> **Empirical Bottom Line**: The strategy captured genuine gross economic mispricings, but transaction friction consumed **171.9%** of gross earnings. Out-of-sample failure was primarily driven by **structural parameter breakdown and cointegration decay** (0 of 5 candidate pairs remained cointegrated out-of-sample), rendering static hedge ratios fragile against persistent spread divergence.
+> **Empirical Bottom Line**: No statistically valid cointegrated pairs were found in training; trading the fallback basket anyway lost money after transaction costs. Cointegration never existed for `COP_DVN` (which alone accounted for -$36,982.71 in net losses). Rather than cointegration "decaying," we traded noise, and persistent spread divergence compounded when immediate re-entries occurred after 30-day time-stop exits.
 
 ---
 
@@ -100,7 +101,7 @@ stat-arb-pairs-trading/
 ├── tests/                       # 74 deterministic unit and property-based tests
 ├── docs/                        # Research protocol, methodology, and frozen decisions
 └── reports/
-    ├── research_report.md       # Comprehensive 12-section institutional research paper
+    ├── research_report.md       # Comprehensive 12-section quantitative research report
     ├── results/                 # Machine-readable CSVs, JSON metrics, and audit logs
     └── figures/                 # 44 publication-ready SVG/PNG diagnostic plots
 ```
@@ -112,7 +113,7 @@ stat-arb-pairs-trading/
 ### Installation
 Clone the repository and install locked dependencies in a virtual environment:
 ```bash
-git clone https://github.com/your-username/stat-arb-pairs-trading.git
+git clone https://github.com/crys1ss/stat-arb-pairs-trading.git
 cd stat-arb-pairs-trading
 python -m venv venv
 # On Windows: venv\Scripts\activate | On macOS/Linux: source venv/bin/activate
@@ -140,7 +141,7 @@ python scripts/run_pipeline.py --config configs/test_run.yaml --recompute
 Execute the deterministic test suite covering signal timing, execution lag, cost accounting, and statistical calculations:
 ```bash
 pytest -q
-# Output: 74 passed in ~6.0s
+# Output: 75 passed in ~6.6s
 ```
 
 ### Rebuild the Website Data
@@ -185,7 +186,7 @@ The site deploys automatically on every push to `main` via `.github/workflows/pa
 
 ## 7. Limitations & Data-Use Notice
 
-### Institutional & Modeling Limitations
+### Modeling & Execution Limitations
 1. **Survivorship Bias**: Universe tickers were chosen from current S&P 500 constituents listed continuously from 2018 to 2024, excluding delisted or distressed firms.
 2. **Small Universe**: 18 large-cap stocks (45 intra-sector pairs) constrained diversification across idiosyncratic spread shocks.
 3. **Dividend Liabilities on Short Borrow**: Cash dividends were adjusted into price series rather than debited as physical cash flows on ex-dividend dates.
@@ -193,7 +194,9 @@ The site deploys automatically on every push to `main` via `.github/workflows/pa
 5. **Close-to-Close Execution**: Fills were executed at day $t+1$ close without modeling Market-on-Close (MOC) order book imbalances.
 6. **Zero Endogenous Market Impact**: Fixed 5.0 bps slippage assumed infinite liquidity at close without square-root price impact penalties.
 7. **Single Chronological Partition**: The timeline was split once (4y train, 1y validation, 2y test) rather than evaluated via combinatorial purged cross-validation.
-8. **Pre-Registered Fallback**: Zero pairs cleared strict Holm-Bonferroni testing in training; the top 5 pairs by raw p-value were traded as an exploratory basket.
+8. **Pre-Registered Fallback**: Zero pairs cleared strict Holm-Bonferroni testing in training; the top 5 pairs by raw p-value were traded as an exploratory basket (two of which failed even uncorrected 5% testing).
+9. **Borrow Fee Accounting**: Borrow costs were accrued on the short leg notional fixed at entry fill rather than continuously marked to market daily.
+10. **Holding Horizon**: The maximum hold timer increments from the signal bar, resulting in trades lasting 29 trading days rather than a full 30 days.
 
 ### Data-Use & Educational Disclaimer
 *Market data is accessed via the Yahoo Finance API for personal, non-commercial academic research and educational evaluation only. This project does not constitute financial, investment, or trading advice. Past simulated performance is no guarantee of future trading results.*

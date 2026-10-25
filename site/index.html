@@ -72,10 +72,10 @@
 
     <!-- 1. HERO SECTION -->
     <section id="hero" class="section hero-content">
-      <div class="sec-eyebrow">Quantitative Research · Cointegration · Friction Reality</div>
-      <h1 class="hero-headline">I tested whether pairs of related stocks that drift apart tend to snap back, and whether you could profit from that after real trading costs.</h1>
+      <div class="sec-eyebrow">Quantitative Research · Cointegration Screen · Friction Reality</div>
+      <h1 class="hero-headline">No statistically valid pairs were found in screening; trading the fallback basket lost money after real costs.</h1>
       <p class="hero-statement">
-        An honest, transparent simulation of statistical arbitrage in U.S. equities from 2018 to 2024. All models were frozen before touching the locked out-of-sample test period.
+        An honest, transparent post-mortem of cointegration pairs trading in U.S. large-cap equities (2018–2024). Zero pairs survived multiple-testing correction in training, and trading unconfirmed pairs led to persistent divergence and negative net returns out-of-sample.
       </p>
 
       <div class="hero-cta">
@@ -110,7 +110,7 @@
           </div>
         </div>
         <p class="honest-caption" id="hero-test-desc">
-          Gross profit was positive (<b>+$10,586</b>), but real-world execution costs erased 100% of the gains, resulting in an honest <b>−$7,613</b> net loss.
+          Zero pairs passed Holm-Bonferroni screening in training (2 of 5 fallback picks failed even uncorrected 5% testing). While gross trading showed +$10,586, non-cointegrated divergence and execution friction produced an honest <b>−$7,613</b> net loss.
         </p>
       </article>
     </section>
@@ -448,6 +448,15 @@
 
           <div class="control-group">
             <div class="control-header">
+              <span class="control-title">Time-Stop Cooldown</span>
+              <span class="control-val" id="sim-cooldown-val">0 days</span>
+            </div>
+            <input type="range" class="slider-input" id="sim-cooldown" min="0" max="30" step="1" value="0">
+            <span class="control-sub">Pause re-entry after max-hold (stops re-entering broken pairs)</span>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
               <span class="control-title">Cost per side per leg</span>
               <span class="control-val" id="sim-cost-bps-val">10.0 bps</span>
             </div>
@@ -520,33 +529,33 @@
 
       <div class="takeaways-grid">
         <div class="takeaway-card">
-          <h3>1. Economic Edge Was Genuine</h3>
-          <p>The strategy generated positive gross trading profits in all three periods (<b>+$226,590</b> in Train, <b>+$16,082</b> in Validation, and <b>+$10,586</b> in Test). The statistical logic of spread mean-reversion successfully identified mispriced relative value.</p>
+          <h3>1. Training Was a Sanity Check, Not Evidence</h3>
+          <p>Pairs, hedge ratios, and z-score parameters were all fitted on training data, so a 96.9% in-sample win rate is expected. It confirms signal engine code mechanics, but provides zero evidence of out-of-sample profitability.</p>
         </div>
 
         <div class="takeaway-card">
           <h3>2. Execution Friction Erased the Alpha</h3>
-          <p>In the untouched 2023–2024 test period, trading friction ($18,199 total) consumed <b>171.9%</b> of gross trading profits. Because the strategy trades 39 times over two years with a 1-day execution lag, commissions, bid-ask slippage, and borrow costs consumed the entire edge.</p>
+          <p>In the untouched 2023–2024 test period, trading friction ($18,199 total) consumed <b>171.9%</b> of gross trading profits. Because the strategy trades 39 times over two years with a 1-day execution lag, commissions, bid-ask slippage, and borrow costs consumed the entire gross profit.</p>
         </div>
 
         <div class="takeaway-card">
           <h3>3. Razor-Thin Breakeven Margin</h3>
-          <p>In the test period, the break-even transaction cost is only <b>5.12 bps per side</b>. At standard institutional friction (10 bps/side), the strategy loses money. To succeed out-of-sample, execution must be twice as cheap as typical retail costs.</p>
+          <p>In the test period, the break-even transaction cost is only <b>5.12 bps per side</b>. At standard baseline friction (10 bps/side), the strategy loses money. Out-of-sample success requires execution costs at least twice as cheap as typical retail levels.</p>
         </div>
 
         <div class="takeaway-card">
-          <h3>4. Cointegration Decayed Out-of-Sample</h3>
-          <p>None of the 45 candidate pairs passed the strict Holm-Bonferroni correction in the training period; the 5 traded pairs were the lowest raw p-values. In 2023–2024, zero of the 5 pairs remained cointegrated, causing persistent non-reverting trends.</p>
+          <h3>4. No Statistically Valid Pairs Found; Traded Noise</h3>
+          <p>Zero candidate pairs survived Holm-Bonferroni correction in training. Worse, 2 of the 5 fallback picks failed even the uncorrected 5% test: <b>COP_DVN (p = 0.053)</b> and <b>COP_CVX (p = 0.090)</b>. Cointegration never existed for COP_DVN, which alone sank the portfolio (-$36,983). We traded noise, and the non-stationary spread drifted.</p>
         </div>
 
         <div class="takeaway-card">
-          <h3>5. Time Stops Protected Against Catastrophe</h3>
-          <p>The mandatory 30-day maximum holding limit successfully prevented unhedged catastrophic drawdowns when spread relationships broke down (such as COP / DVN during late 2022 and 2023 divergence).</p>
+          <h3>5. Time Stops Need Re-Entry Cooldowns</h3>
+          <p>When a trade hit the 30-day time stop and |z| remained > 2.0, the state machine immediately reopened the same position the next day (e.g. COP_DVN exited 2023-08-09 and re-entered 2023-08-10). Testing a re-entry cooldown strictly on validation data boosts Net P&L from +$4.9k to +$45.4k by halting repeated churn into broken pairs.</p>
         </div>
 
         <div class="takeaway-card">
-          <h3>6. What I Would Try Next</h3>
-          <p>Future iterations would focus on: (a) <b>Dynamic Kalman Filter hedge ratios</b> to adapt to changing beta, (b) <b>Limit-order passive market making</b> to capture the spread instead of paying it, and (c) <b>Multivariate Johansen cointegration</b> across larger sector baskets.</p>
+          <h3>6. Sensitivity Runs Are Hypotheses, Not Fixes</h3>
+          <p>Out of 84 parameter variants run across 2023–24, certain settings (rolling z-score, 60-day hold) turn net positive. In any 84-trial grid, some variants win by chance. We treat these strictly as <i>hypotheses for the next study</i>, never as post-hoc fixes.</p>
         </div>
       </div>
     </section>

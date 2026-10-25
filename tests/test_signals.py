@@ -172,3 +172,32 @@ def test_period_end_exit():
     assert sig_close.loc[2, "exit_reason"] == "period_end"
     assert sig_close.loc[2, "state"] == 0
 
+
+def test_time_stop_cooldown():
+    # Enter long at bar 0, hold for 2 days, exit on max_hold at bar 1 (max_hold_days=2).
+    # z remains at -2.5 (an entry level).
+    # With time_stop_cooldown_days = 2:
+    # Bar 0: Enter long (z = -2.5)
+    # Bar 1: max_hold exit (days_held=2). cooldown set to 2.
+    # Bar 2: Cooldown bar 1 -> flat, no entry despite z = -2.5.
+    # Bar 3: Cooldown bar 2 -> flat, no entry despite z = -2.5.
+    # Bar 4: Cooldown expired -> enters long!
+    z_seq = pd.Series([-2.5, -2.5, -2.5, -2.5, -2.5])
+    sig = generate_signals(z_seq, entry_z=2.0, exit_z=0.5, max_hold_days=2, time_stop_cooldown_days=2)
+
+    assert bool(sig.loc[0, "entry_flag"]) is True
+    assert sig.loc[0, "state"] == 1
+    assert bool(sig.loc[1, "exit_flag"]) is True
+    assert sig.loc[1, "exit_reason"] == "max_hold"
+    assert sig.loc[1, "state"] == 0
+
+    # Bars 2 and 3 must be blocked by cooldown
+    assert bool(sig.loc[2, "entry_flag"]) is False
+    assert sig.loc[2, "state"] == 0
+    assert bool(sig.loc[3, "entry_flag"]) is False
+    assert sig.loc[3, "state"] == 0
+
+    # Bar 4 re-enters
+    assert bool(sig.loc[4, "entry_flag"]) is True
+    assert sig.loc[4, "state"] == 1
+

@@ -1,6 +1,6 @@
 # Statistical Arbitrage in Equity Markets: Cointegration-Based Pairs Trading with Out-of-Sample Validation
 
-**Author:** Quantitative Research  
+**Author:** Tanay (@crys1ss) · Quantitative Research  
 **Date:** October 2026  
 **Status:** Completed Research Report (Post-Test Evaluation & Failure Analysis)  
 **Baseline SHA-256 Hashes:** `configs/baseline.yaml` (`40f7c5f8...`), `reports/results/selected_pairs.csv` (`52c64903...`)  
@@ -18,11 +18,12 @@ In an untouched, out-of-sample evaluation window spanning 2023 to 2024 (501 acti
 
 While the statistical signal engine achieved positive gross trading profits of **+$10,586.12** (gross Sharpe **0.1997**, annualized return **+0.53%**), cumulative friction totaled **$18,199.40** ($15,602.81 in commissions/slippage and $2,596.59 in short borrow fees). Transaction costs consumed **171.92%** of gross earnings, producing an ending net loss of **-$7,613.28**, an annualized net CAGR of **-0.38%**, a net Sharpe ratio of **-0.1189**, and a maximum drawdown of **3.71%** lasting 478 trading days.
 
-Out-of-sample failure was driven by **structural parameter breakdown and cointegration decay**:
-1. All 5 candidate pairs suffered structural breaks over the 2018–2024 horizon (CUSUM test $p < 0.0001$).
-2. While 3 pairs exhibited raw cointegration in-sample, **zero pairs** maintained statistical cointegration in 2023–2024 ($p \in [0.2068, 0.9507]$).
-3. The break-even friction threshold in test was **5.12 bps** per side per leg, well below realistic conservative execution costs (10.0 bps).
-4. Four of five pairs were profitable out-of-sample (+ $29,369.44 net), but `COP_DVN` experienced persistent divergence, losing **-$36,982.71** (55.74% of absolute portfolio P&L) via 30-day timeout liquidations.
+Out-of-sample failure was driven by **screening failure, noise trading, and structural parameter breakdown**:
+1. Zero candidate pairs survived Holm-Bonferroni multiple-testing correction in training; two of the five fallback picks failed even uncorrected 5% testing (`COP_DVN` $p = 0.053$, `COP_CVX` $p = 0.090$). Cointegration never existed for `COP_DVN`, which alone accounted for -$36,982.71 in net losses.
+2. All 5 candidate pairs suffered structural breaks over the 2018–2024 horizon (CUSUM test $p < 0.0001$).
+3. Zero candidate pairs maintained statistical cointegration in 2023–2024 ($p \in [0.2068, 0.9507]$).
+4. The break-even friction threshold in test was **5.12 bps** per side per leg, well below realistic conservative execution costs (10.0 bps).
+5. Four of five pairs were profitable out-of-sample (+ $29,369.44 net), but `COP_DVN` experienced persistent divergence, losing **-$36,982.71** (55.74% of absolute portfolio P&L) via 30-day timeout liquidations followed by immediate re-entries.
 
 ---
 
@@ -79,20 +80,20 @@ Spread residuals were fitted to an AR(1) process $\Delta s_t = \phi s_{t-1} + \m
 
 ## 5. Pair-Selection Procedure
 
-### Screening Funnel
-The table below documents the screening funnel applied strictly to training data (2018–2021):
+### Screening Filters and Selection Breakdown
+The table below documents the screening criteria evaluated on training data (2018–2021):
 
-| Screening Stage | Filter Criteria | Banks (15) | Energy (15) | Staples (15) | Total (45) |
+| Screening Filter / Stage | Filter Criteria | Banks (15) | Energy (15) | Staples (15) | Total (45) |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| **Candidate Pairs** | Intra-sector pairs, $A < B$ | 15 | 15 | 15 | **45** |
+| **Candidate Universe** | Intra-sector pairs, $A < B$ | 15 | 15 | 15 | **45** |
+| **Half-Life Bound** | $t_{1/2} \in [1.0, 60.0]$ days (independent filter) | 10 | 10 | 7 | **27** |
 | **Raw Engle-Granger** | Bidirectional max $p < 0.05$ | 1 | 0 | 2 | **3** |
-| **Holm-Bonferroni** | Adjusted $\tilde{p} < 0.05$ | 0 | 0 | 0 | **0** |
-| **Half-Life Filter** | $t_{1/2} \in [1.0, 60.0]$ days | 10 | 10 | 7 | **27** |
-| **Selected Portfolio** | Pre-registered fallback (Top 5) | 1 | 2 | 2 | **5** |
+| **Holm-Bonferroni** | Adjusted $\tilde{p} < 0.05$ across 45 hypotheses | 0 | 0 | 0 | **0** |
+| **Selected Fallback Basket** | Top 5 by raw $p$-value meeting half-life bound | 1 | 2 | 2 | **5** |
 
-*Observation*: Zero pairs passed strict Holm-Bonferroni correction across 45 hypotheses.
+*Observation*: Zero pairs passed strict Holm-Bonferroni correction across 45 hypotheses. Furthermore, 2 of the 5 fallback picks (`COP_DVN` $p = 0.0531$, `COP_CVX` $p = 0.0903$) failed even uncorrected $5\%$ significance testing. Cointegration was never statistically established for these energy pairs in training.
 
-*Interpretation*: Under the pre-registered fallback rule in `PROGRESS.md`, the top 5 pairs with the lowest raw bidirectional p-values meeting the half-life bound were selected as exploratory pairs.
+*Interpretation*: Under the pre-registered fallback rule in `PROGRESS.md`, the top 5 pairs with the lowest raw bidirectional p-values meeting the half-life bound were selected as exploratory pairs. Because the screen found no valid cointegrated pairs, trading the fallback basket effectively meant trading noise after friction.
 
 ### Selected Portfolio Registry
 Frozen in-sample training parameters for the selected portfolio:
@@ -200,7 +201,7 @@ Regressing daily returns on SPY ETF returns using Newey-West HAC standard errors
 
 *Observation*: Across all periods, |beta| to SPY is small (ranging from 0.0075 to 0.0318) and $R^2$ is at most about 5 percent (0.0460 in train, 0.0028 full span). However, the Newey-West HAC $t$-statistic is statistically significant with negative beta in validation ($\beta = -0.0233$, $t = -2.31$, $p = 0.0211$) and test ($\beta = -0.0318$, $t = -2.66$, $p = 0.0079$), while not significant in train ($t = +1.43$, $p = 0.1539$) or full span ($\beta = +0.0075$, $t = +0.61$, $p = 0.5422$).
 
-*Interpretation*: While beta is not statistically zero across all periods, its economic magnitude remains small ($|\beta| \le 0.0318$, $R^2 \le 4.60\%$). Drawdown was driven primarily by idiosyncratic spread breakdown rather than broad market directionality.
+*Interpretation*: While beta is statistically non-zero in validation ($t = -2.31$) and test ($t = -2.66$), its economic magnitude is negligible ($|\beta| \le 0.0318$, $R^2 \le 4.60\%$). Portfolio performance was driven by idiosyncratic spread divergence and execution friction rather than broad equity market directionality.
 
 ### Cointegration Decay & CUSUM Structural Breaks
 Out-of-sample Engle-Granger tests on test data and OLS-residual CUSUM tests (`breaks_cusumolsresid`, ddof=2) over 2018–2024:
