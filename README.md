@@ -1,9 +1,16 @@
 # Statistical Arbitrage in Equity Markets: Cointegration-Based Pairs Trading with Out-of-Sample Validation
 
-[![Unit Tests](https://img.shields.io/badge/pytest-69%20passed-brightgreen.svg)]()
-[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)]()
+[![Unit Tests](https://img.shields.io/badge/pytest-74%20passed-brightgreen.svg)]()
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)]()
 [![Research Status](https://img.shields.io/badge/research-frozen--v1-orange.svg)]()
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-blue.svg)](https://crys1ss.github.io/stat-arb-pairs-trading/)
+
+> **Live Demo & Interactive Browser Simulator**: [https://crys1ss.github.io/stat-arb-pairs-trading/](https://crys1ss.github.io/stat-arb-pairs-trading/)
+>
+> Explore pairs trading in 60 seconds, watch the day-by-day historical replay with complete transaction costs, and experiment with strategy parameters directly in your browser.
+
+[![Pairs Trading Replay & Simulator](docs/img/replay.png)](https://crys1ss.github.io/stat-arb-pairs-trading/)
 
 A modular, production-grade quantitative research framework evaluating whether cointegration-based pairs trading generates robust risk-adjusted alpha in U.S. large-cap equities after realistic transaction friction, execution delays, and market structural breaks.
 
@@ -135,6 +142,24 @@ Execute the deterministic test suite covering signal timing, execution lag, cost
 pytest -q
 # Output: 74 passed in ~6.0s
 ```
+
+### Rebuild the Website Data
+Export pipeline results, price matrices, and frozen parameters to `site/data/` for the public website and simulation playground:
+```bash
+python scripts/export_site_data.py
+```
+This script validates data integrity by asserting that trade net P&L matches equity change in each period within $1.
+
+To run the automated client-side simulation engine parity verification:
+```bash
+node site/tests/parity.js
+```
+
+### Deploy to GitHub Pages
+The site deploys automatically on every push to `main` via `.github/workflows/pages.yml`. To enable GitHub Pages on your repository:
+1. Go to **Settings** > **Pages**
+2. Under **Build and deployment**, set **Source** to **GitHub Actions**
+3. Once the workflow completes, the site will be live at `https://<my-username>.github.io/stat-arb-pairs-trading/`
 
 ---
 

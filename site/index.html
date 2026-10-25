@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pairs Trading Research: Statistical Arbitrage & Real Trading Costs</title>
+  <meta name="description" content="A beginner-friendly interactive exploration of cointegration pairs trading in U.S. equities, tested with real-world execution friction and out-of-sample data.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- D3 v7 Pinned CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Tiny dash stand-in loader for replay data -->
+  <script>
+    (function(){
+      const names = ['daily', 'trades', 'pairs', 'periods', 'cost_curve', 'entry_exit'];
+      const store = {};
+      names.forEach(n => store[n] = { status: 'loading', data: [] });
+      const subs = [];
+      const fire = () => subs.forEach(f => { try { f(); } catch(e) { console.error(e); } });
+      window.dash = {
+        data: n => store[n] || { status: 'missing', data: [] },
+        onData: f => { subs.push(f); f(); },
+        colors: ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)']
+      };
+      names.forEach(n => fetch('data/' + n + '.json')
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(d => { store[n] = { status: 'ok', data: d }; fire(); })
+        .catch(() => { store[n] = { status: 'error', data: [] }; fire(); })
+      );
+      let t;
+      addEventListener('resize', () => { clearTimeout(t); t = setTimeout(fire, 150); });
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- Sticky Top Navigation -->
+  <header class="site-nav">
+    <div class="nav-container">
+      <a href="#hero" class="brand-link">
+        <span class="brand-dot"></span>
+        <span>Pairs Trading</span>
+      </a>
+      <nav class="nav-links" aria-label="Main Navigation">
+        <a href="#hero" class="nav-link">Overview</a>
+        <a href="#in-60s" class="nav-link">In 60s</a>
+        <a href="#pipeline" class="nav-link">Pipeline</a>
+        <a href="#watch" class="nav-link">Watch Replay</a>
+        <a href="#playground" class="nav-link">Playground</a>
+        <a href="#takeaways" class="nav-link">Takeaways</a>
+        <a href="#glossary" class="nav-link">Glossary</a>
+        <a href="#about" class="nav-link">About</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="https://github.com/crys1ss/stat-arb-pairs-trading" target="_blank" rel="noopener noreferrer" class="btn-sm-ghost">
+          <span>GitHub</span>
+          <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-wrap">
+
+    <!-- 1. HERO SECTION -->
+    <section id="hero" class="section hero-content">
+      <div class="sec-eyebrow">Quantitative Research · Cointegration · Friction Reality</div>
+      <h1 class="hero-headline">I tested whether pairs of related stocks that drift apart tend to snap back, and whether you could profit from that after real trading costs.</h1>
+      <p class="hero-statement">
+        An honest, transparent simulation of statistical arbitrage in U.S. equities from 2018 to 2024. All models were frozen before touching the locked out-of-sample test period.
+      </p>
+
+      <div class="hero-cta">
+        <a href="#watch" class="btn-primary">
+          <span>Watch it trade</span>
+          <span aria-hidden="true">↓</span>
+        </a>
+        <a href="#playground" class="btn-secondary">
+          <span>Try it yourself</span>
+          <span aria-hidden="true">⚙</span>
+        </a>
+      </div>
+
+      <!-- Honest Headline Card for Locked Test Period -->
+      <article class="card hero-honest-card" aria-labelledby="hero-headline-title">
+        <div class="step-badge" id="hero-headline-title">Untouched Test Period Result (2023 to 2024)</div>
+        <div class="honest-grid">
+          <div class="honest-stat">
+            <div class="stat-label">Net Profit or Loss</div>
+            <div class="stat-val neg" id="hero-test-net">−$7,613</div>
+            <div class="stat-sub">After all fees & borrow</div>
+          </div>
+          <div class="honest-stat">
+            <div class="stat-label">Gross Trading Profit</div>
+            <div class="stat-val pos" id="hero-test-gross">+$10,586</div>
+            <div class="stat-sub">Before market friction</div>
+          </div>
+          <div class="honest-stat">
+            <div class="stat-label">Trading Costs Paid</div>
+            <div class="stat-val" id="hero-test-costs">$18,199</div>
+            <div class="stat-sub">10 bps/side + short borrow</div>
+          </div>
+        </div>
+        <p class="honest-caption" id="hero-test-desc">
+          Gross profit was positive (<b>+$10,586</b>), but real-world execution costs erased 100% of the gains, resulting in an honest <b>−$7,613</b> net loss.
+        </p>
+      </article>
+    </section>
+
+    <!-- 2. PAIRS TRADING IN 60 SECONDS -->
+    <section id="in-60s" class="section">
+      <div class="sec-header">
+        <div class="sec-eyebrow">Visual Primer</div>
+        <h2 class="sec-title">Pairs trading in 60 seconds</h2>
+        <p class="sec-desc">
+          Imagine two companies in the exact same business—like two major banks. Because they face identical economic forces, their stock prices usually move in tandem. When unexpected news makes their prices drift apart, pairs trading bets they will eventually snap back together.
+        </p>
+      </div>
+
+      <div class="card illustration-card">
+        <!-- Interactive Animated Canvas -->
+        <div class="illustrator-canvas-wrap">
+          <div id="illustrator-canvas" aria-hidden="true"></div>
+        </div>
+
+        <!-- Synchronized Gap Meter -->
+        <div class="gap-meter-box">
+          <div class="gap-meter-top">
+            <span style="font-weight:600;">The Gap Meter (Spread Z-Score)</span>
+            <span id="meter-val" class="tabular" style="font-weight:700;">+0.00</span>
+          </div>
+          <div class="meter-track">
+            <div id="meter-fill" class="meter-fill"></div>
+          </div>
+          <div class="meter-labels">
+            <span>0.0 (Normal)</span>
+            <span>0.5 (Exit Band)</span>
+            <span>2.0 (Entry Threshold)</span>
+            <span>3.0+ (Extreme Divergence)</span>
+          </div>
+          <div id="meter-status" style="font-size:12.5px; margin-top:0.25rem;">
+            Stocks moving in lockstep equilibrium
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <button type="button" class="btn-sm-ghost" id="illustrator-play-btn" style="cursor:pointer;">
+            Pause Animation
+          </button>
+          <div style="font-size:12px; color:var(--color-fg-muted);">
+            Illustration based on BAC / PNC spread dynamics
+          </div>
+        </div>
+
+        <!-- 4 Plain Language Explanatory Cards -->
+        <div class="illustration-explainer">
+          <div class="explainer-pill">
+            <h4>1. The Spread</h4>
+            <p>The price difference between two related stocks, scaled by a fitted hedge ratio. When the spread is flat, the market is in equilibrium.</p>
+          </div>
+          <div class="explainer-pill">
+            <h4>2. The Z-Score</h4>
+            <p>A statistical ruler measuring how rare today's price gap is compared to historical normal, in standard deviations.</p>
+          </div>
+          <div class="explainer-pill">
+            <h4>3. Enter at 2.0</h4>
+            <p>When the gap widens past 2.0 standard deviations (a top 5% rarity), bet on mean reversion: buy the depressed stock and short the elevated stock.</p>
+          </div>
+          <div class="explainer-pill">
+            <h4>4. Exit at 0.5</h4>
+            <p>When the gap closes back inside 0.5 standard deviations, close both legs simultaneously to lock in the net profit.</p>
+          </div>
+        </div>
+
+        <!-- Show the Maths Expandable Card -->
+        <div class="math-toggle-wrap">
+          <button type="button" class="math-toggle-btn" id="math-toggle-btn" aria-expanded="false">
+            Show the maths
+          </button>
+          <div id="math-details-card" class="math-details-card" hidden>
+            <div>
+              <b>Spread Equation:</b>
+              <div class="math-formula">Spread_t = ln(Price_A,t) − α − β × ln(Price_B,t)</div>
+              where α (intercept) and β (hedge ratio) are fitted strictly on training data (2018–2021) via OLS regression.
+            </div>
+            <div>
+              <b>Z-Score Normalization:</b>
+              <div class="math-formula">z_t = (Spread_t − μ_train) / σ_train</div>
+              normalized using the strictly frozen training mean (μ_train) and training standard deviation (σ_train).
+            </div>
+            <div>
+              <b>Market-Neutral Capital Weights:</b>
+              <div class="math-formula">w_A = 1 / (1 + |β|), &emsp; w_B = −β / (1 + |β|) &emsp; (|w_A| + |w_B| = 1.0)</div>
+              ensuring the dollar exposure on the pair balances out broad market directional moves.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 3. HOW I BUILT IT -->
+    <section id="pipeline" class="section">
+      <div class="sec-header">
+        <div class="sec-eyebrow">Research Methodology</div>
+        <h2 class="sec-title">How I built it</h2>
+        <p class="sec-desc">
+          To ensure genuine statistical validity and avoid p-hacking or lookahead bias, this project was developed as a strict, six-stage quantitative research pipeline.
+        </p>
+      </div>
+
+      <div class="pipeline-grid">
+        <div class="pipeline-card">
+          <div class="step-badge"><span class="step-num">1</span> Stage 1</div>
+          <h3>Get clean data</h3>
+          <p>Acquired adjusted daily closing prices for 15 large-cap U.S. equities across banks, staples, and energy from 2018 through 2024. Audited for zero splits or missing dates.</p>
+          <a href="https://github.com/crys1ss/stat-arb-pairs-trading/blob/main/src/data.py" target="_blank" rel="noopener noreferrer" class="file-link">src/data.py ↗</a>
+        </div>
+
+        <div class="pipeline-card">
+          <div class="step-badge"><span class="step-num">2</span> Stage 2</div>
+          <h3>Find candidate pairs</h3>
+          <p>Formed all 45 unique intra-sector candidate pairs. Constraining pairs to the same industry ensures shared business and economic fundamentals.</p>
+          <a href="https://github.com/crys1ss/stat-arb-pairs-trading/blob/main/src/pairs.py" target="_blank" rel="noopener noreferrer" class="file-link">src/pairs.py ↗</a>
+        </div>
+
+        <div class="pipeline-card">
+          <div class="step-badge"><span class="step-num">3</span> Stage 3</div>
+          <h3>Test cointegration</h3>
+          <p>Ran the Engle-Granger two-step cointegration test on 2018–2021 training prices to verify stationary residuals and estimate mean-reverting half-lives.</p>
+          <a href="https://github.com/crys1ss/stat-arb-pairs-trading/blob/main/src/pairs.py" target="_blank" rel="noopener noreferrer" class="file-link">src/pairs.py ↗</a>
+        </div>
+
+        <div class="pipeline-card">
+          <div class="step-badge"><span class="step-num">4</span> Stage 4</div>
+          <h3>Freeze all settings</h3>
+          <p>Locked all parameters in Day 10: hedge ratios (β), spread means, entry thresholds (±2.0), exit thresholds (±0.5), and max hold days (30). Never re-tuned.</p>
+          <a href="https://github.com/crys1ss/stat-arb-pairs-trading/blob/main/docs/FROZEN_DECISIONS.md" target="_blank" rel="noopener noreferrer" class="file-link">docs/FROZEN_DECISIONS.md ↗</a>
+        </div>
+
+        <div class="pipeline-card">
+          <div class="step-badge"><span class="step-num">5</span> Stage 5</div>
+          <h3>Simulate with real costs</h3>
+          <p>Enforced next-day close execution (lag 1) to eliminate impossible same-day fills. Deducted 10 bps per side per leg for commission/slippage, plus 50 bps/year short borrow.</p>
+          <a href="https://github.com/crys1ss/stat-arb-pairs-trading/blob/main/src/backtest.py" target="_blank" rel="noopener noreferrer" class="file-link">src/backtest.py ↗</a>
+        </div>
+
+        <div class="pipeline-card">
+          <div class="step-badge"><span class="step-num">6</span> Stage 6</div>
+          <h3>Test once on locked data</h3>
+          <p>Unlocked the 2023–2024 test period exactly once. No adjustments, no re-fitting, and no second chances—producing authentic out-of-sample performance.</p>
+          <a href="https://github.com/crys1ss/stat-arb-pairs-trading/blob/main/src/portfolio.py" target="_blank" rel="noopener noreferrer" class="file-link">src/portfolio.py ↗</a>
+        </div>
+      </div>
+
+      <!-- Honesty Checklist Box -->
+      <aside class="honesty-box" aria-labelledby="honesty-title">
+        <h3 id="honesty-title">
+          <span>Honesty Checklist</span>
+        </h3>
+        <ul class="honesty-list">
+          <li><b>Strict Multiple-Testing Honesty:</b> 0 of 45 pairs passed Holm-Bonferroni correction (α = 0.05) in training. The top 5 lowest raw p-values were selected and explicitly labelled <b>exploratory</b>.</li>
+          <li><b>Untouched Out-of-Sample:</b> 2023 to 2024 was kept completely blind until Day 10 freezing.</li>
+          <li><b>Execution Delay:</b> Fills occur strictly at the next close (lag 1), eliminating impossible same-day execution.</li>
+          <li><b>Institutional Friction:</b> Commissions (5 bps), slippage (5 bps), and short borrow fees (50 bps/yr) charged on every trade.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <!-- 4. WATCH IT TRADE (REPLAY CENTREPIECE) -->
+    <section id="watch" class="section">
+      <div class="sec-header">
+        <div class="sec-eyebrow">Day-by-Day Interactive Simulation</div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:0.5rem;">
+          <h2 class="sec-title">Watch it trade</h2>
+          <button type="button" class="btn-sm-ghost" onclick="window.relaunchReplayTour()" style="cursor:pointer;">
+            Take 3-step tour again
+          </button>
+        </div>
+        <p class="sec-desc">
+          Press Play to watch the strategy trade through historical market days. Observe the divergence signals in each pair's z-score chart and watch orders execute with full cost accounting.
+        </p>
+      </div>
+
+      <!-- Embedded Replay Component -->
+      <div id="rp-embed-wrap">
+        <div id="rp">
+          <header>
+            <h1 class="rp-title" style="display:none;">Pairs trading replay</h1>
+            <p class="rp-take" id="rp-take" data-source="periods">—</p>
+          </header>
+          <div class="rp-fail"><i></i>Failed to load</div>
+
+          <div class="rp-body" style="display:grid;gap:var(--cds-gap-md);min-width:0">
+            <section class="rp-controls" aria-label="Replay controls">
+              <div class="rp-tabs" role="group" aria-label="Period">
+                <button type="button" data-period="train" aria-pressed="false">Train 2018 to 2021</button>
+                <button type="button" data-period="validation" aria-pressed="false">Validation 2022</button>
+                <button type="button" data-period="test" aria-pressed="true">Test 2023 to 2024</button>
+              </div>
+              <button type="button" class="rp-btn" id="rp-play">Play</button>
+              <button type="button" class="rp-btn" id="rp-restart">Restart</button>
+              <select id="rp-speed" aria-label="Replay speed">
+                <option value="15">Slow</option>
+                <option value="50" selected>Normal</option>
+                <option value="150">Fast</option>
+              </select>
+              <div class="rp-scrub"><input type="range" id="rp-scrub" min="0" max="1" value="1" step="1" aria-label="Replay day"></div>
+              <div class="rp-date" id="rp-date" aria-live="off">—</div>
+            </section>
+
+            <section class="rp-tiles" aria-label="Replay figures" data-source="daily periods">
+              <div class="rp-tile"><div class="k">Net profit or loss so far</div><div class="v" id="t-net">—</div><div class="s" id="t-net-s">—</div></div>
+              <div class="rp-tile"><div class="k">Gross, before costs</div><div class="v" id="t-gross">—</div><div class="s" id="t-gross-s">—</div></div>
+              <div class="rp-tile"><div class="k">Costs paid so far</div><div class="v" id="t-cost">—</div><div class="s" id="t-cost-s">—</div></div>
+              <div class="rp-tile"><div class="k">Trades closed</div><div class="v" id="t-trades">—</div><div class="s" id="t-trades-s">—</div></div>
+            </section>
+            <div class="rp-results" id="rp-results" data-source="periods"></div>
+
+            <section class="rp-card" aria-labelledby="h-eq">
+              <h2 id="h-eq">Portfolio profit and loss</h2>
+              <p class="rp-note">Cumulative profit or loss against the $1,000,000 starting capital. The gap between the two lines is what trading costs took.</p>
+              <div class="rp-legend" id="rp-eq-legend"></div>
+              <div class="rp-chart dash-skeleton" id="rp-eq" data-source="daily"></div>
+              <div class="rp-chart dash-skeleton" id="rp-dd" data-source="daily"></div>
+            </section>
+
+            <h2 class="rp-sec" id="h-pairs">The five pairs, day by day</h2>
+            <p class="rp-note" style="margin-top:-.4rem">Each chart is the pair's spread as a z-score: how far the price gap sits from its 2018 to 2021 average, in standard deviations. All five share one vertical scale.</p>
+            <div class="rp-legend" id="rp-z-legend" style="margin-top:0"></div>
+            <div class="rp-pairs" id="rp-pairs" data-source="pairs"></div>
+
+            <div class="rp-two">
+              <section class="rp-card" aria-labelledby="h-feed">
+                <h2 id="h-feed">Latest events</h2>
+                <p class="rp-note">A signal is decided at a close. The trade fills at the next close.</p>
+                <ul class="rp-feed" id="rp-feed" data-source="trades"></ul>
+                <p class="rp-empty" id="rp-feed-empty" hidden>No events yet at this point of the replay.</p>
+              </section>
+              <section class="rp-card" aria-labelledby="h-tr">
+                <h2 id="h-tr">Closed trades</h2>
+                <p class="rp-note">Most recent first. Net is after commission, slippage and borrow costs.</p>
+                <div class="rp-scroll">
+                  <table id="rp-trades" data-source="trades" data-row-key="trade_id">
+                    <thead><tr>
+                      <th data-field="pair">Pair</th><th data-field="direction">Side</th><th data-field="entry_date">Opened</th><th data-field="exit_date">Closed</th>
+                      <th class="n" data-field="holding_days">Days</th><th class="n" data-field="gross_pnl">Gross</th><th class="n" data-field="costs">Costs</th><th class="n" data-field="net_pnl">Net</th><th data-field="exit_reason">Exit</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <p class="rp-empty" id="rp-tr-empty" hidden>No closed trades yet at this point of the replay.</p>
+              </section>
+            </div>
+
+            <h2 class="rp-sec" id="h-sens">Would other settings change the story?</h2>
+            <div class="rp-two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+              <section class="rp-card" aria-labelledby="h-heat">
+                <h3 id="h-heat">Entry and exit thresholds</h3>
+                <p class="rp-note" id="rp-heat-note">Net profit for each pair of thresholds, same period as selected above. Sensitivity, not selection.</p>
+                <div class="rp-heat" id="rp-heat" data-source="entry_exit"></div>
+              </section>
+              <section class="rp-card" aria-labelledby="h-cost">
+                <h3 id="h-cost">How much cost can each period absorb?</h3>
+                <p class="rp-note">Net profit as the cost per side per leg rises. Each chart has its own vertical scale. Sensitivity, not selection.</p>
+                <div class="rp-costs" id="rp-costs" data-source="cost_curve periods"></div>
+              </section>
+            </div>
+            <p class="rp-note">Execution lag 2 is not shown here: that run is being corrected.</p>
+
+            <section class="rp-card" aria-labelledby="h-how">
+              <h2 id="h-how">How to read this</h2>
+              <ul class="rp-notes">
+                <li><b>Spread.</b> For each pair, the log price of the first stock minus a frozen multiple of the second. The multiple was fitted on 2018 to 2021 and never refitted.</li>
+                <li><b>Entry and exit.</b> Open when the z-score reaches 2 in either direction, close when it comes back inside 0.5, or after 30 trading days.</li>
+                <li><b>Long and short spread.</b> Long spread buys the first stock and sells the second. Short spread does the reverse.</li>
+                <li><b>Costs.</b> 10 basis points per side on each leg, plus 50 basis points a year to borrow the shorted stock.</li>
+                <li><b>The pairs.</b> No pair passed the strict multiple-testing screen, so the five lowest p-values were used and are labelled exploratory.</li>
+                <li><b>Test period.</b> 2023 to 2024 was kept locked until the research choices were frozen.</li>
+              </ul>
+            </section>
+            <p class="rp-foot">A replay of historical backtest results from the saved v1.0 run, with a one day execution lag. It is research, not a live trading system and not investment advice.</p>
+          </div>
+          <div class="rp-tip" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. TRY IT YOURSELF (WHAT-IF PLAYGROUND) -->
+    <section id="playground" class="section">
+      <div class="sec-header">
+        <div class="sec-eyebrow">Interactive Simulation Engine</div>
+        <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:0.5rem;">
+          <h2 class="sec-title">Try it yourself</h2>
+          <div class="badge-verified">✓ Engine verified against Python pipeline ($0.41 max trade diff)</div>
+        </div>
+        <p class="sec-desc">
+          Test what happens if you trade more aggressively or conservatively. Adjust thresholds, maximum holding time, or transaction friction, and rerun the exact portfolio strategy instantly in your browser.
+        </p>
+      </div>
+
+      <div class="playground-grid">
+        <!-- Sliders & Controls -->
+        <div class="playground-controls">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <b style="font-size:0.95rem;">Simulation Settings</b>
+            <div class="rp-tabs" role="group" aria-label="Playground Period">
+              <button type="button" class="sim-period-btn" data-period="train" aria-pressed="false">Train</button>
+              <button type="button" class="sim-period-btn" data-period="validation" aria-pressed="false">Val</button>
+              <button type="button" class="sim-period-btn" data-period="test" aria-pressed="true">Test</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <span class="control-title">Entry Threshold (z)</span>
+              <span class="control-val" id="sim-entry-z-val">2.0</span>
+            </div>
+            <input type="range" class="slider-input" id="sim-entry-z" min="1.5" max="3.0" step="0.1" value="2.0">
+            <span class="control-sub">Divergence needed to open a trade (lower = more trades)</span>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <span class="control-title">Exit Threshold (z)</span>
+              <span class="control-val" id="sim-exit-z-val">0.5</span>
+            </div>
+            <input type="range" class="slider-input" id="sim-exit-z" min="0.0" max="1.0" step="0.1" value="0.5">
+            <span class="control-sub">Reversion point to take profit (0.0 = full reversion)</span>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <span class="control-title">Max Hold Days</span>
+              <span class="control-val" id="sim-max-hold-val">30 days</span>
+            </div>
+            <input type="range" class="slider-input" id="sim-max-hold" min="10" max="60" step="1" value="30">
+            <span class="control-sub">Forced time-stop liquidation horizon</span>
+          </div>
+
+          <div class="control-group">
+            <div class="control-header">
+              <span class="control-title">Cost per side per leg</span>
+              <span class="control-val" id="sim-cost-bps-val">10.0 bps</span>
+            </div>
+            <input type="range" class="slider-input" id="sim-cost-bps" min="0" max="25" step="1" value="10">
+            <span class="control-sub">Commission + slippage fee rate</span>
+          </div>
+
+          <div class="playground-btns">
+            <button type="button" class="btn-primary" id="sim-run-btn" style="width:100%;">
+              Run simulation
+            </button>
+            <button type="button" class="btn-secondary" id="sim-reset-btn" style="width:100%;">
+              Reset to my settings
+            </button>
+          </div>
+        </div>
+
+        <!-- Simulation Comparison Charts & KPIs -->
+        <div class="playground-display">
+          <div class="card" style="padding:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
+              <h3 style="font-size:1.05rem;">Your Settings vs Baseline Equity Curve</h3>
+              <div style="display:flex; gap:1rem; font-size:12px; color:var(--color-fg-muted);">
+                <span style="display:inline-flex; align-items:center; gap:0.35rem;"><i style="display:inline-block; width:12px; height:3px; background:var(--s1);"></i> Your Settings</span>
+                <span style="display:inline-flex; align-items:center; gap:0.35rem;"><i style="display:inline-block; width:12px; height:2px; background:var(--color-fg-muted); border-top:1px dashed var(--color-fg-muted);"></i> My Baseline</span>
+              </div>
+            </div>
+            <div id="playground-chart" style="min-height:260px;"></div>
+          </div>
+
+          <div class="honest-grid" style="margin:0;">
+            <div class="card" style="padding:0.85rem 1rem;">
+              <div class="stat-label">Net P&L</div>
+              <div class="stat-val" id="sim-net">—</div>
+              <div class="stat-sub" id="sim-net-sub">Baseline: —</div>
+            </div>
+            <div class="card" style="padding:0.85rem 1rem;">
+              <div class="stat-label">Gross P&L</div>
+              <div class="stat-val" id="sim-gross">—</div>
+              <div class="stat-sub" id="sim-gross-sub">Baseline: —</div>
+            </div>
+            <div class="card" style="padding:0.85rem 1rem;">
+              <div class="stat-label">Total Costs</div>
+              <div class="stat-val" id="sim-costs">—</div>
+              <div class="stat-sub" id="sim-costs-sub">Baseline: —</div>
+            </div>
+            <div class="card" style="padding:0.85rem 1rem;">
+              <div class="stat-label">Trades Closed</div>
+              <div class="stat-val" id="sim-trades">—</div>
+              <div class="stat-sub" id="sim-trades-sub">Baseline: —</div>
+            </div>
+          </div>
+
+          <div class="sim-takeaway" id="sim-takeaway-box">
+            <b>Simulation Insight:</b> <span id="sim-takeaway-text">Awaiting simulation run...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. WHAT THE RESULTS MEAN -->
+    <section id="takeaways" class="section">
+      <div class="sec-header">
+        <div class="sec-eyebrow">Honest Empirical Takeaways</div>
+        <h2 class="sec-title">What the results mean</h2>
+        <p class="sec-desc">
+          Rigorous quantitative research means reporting actual findings rather than survivorship-biased marketing. Here is what seven years of testing revealed.
+        </p>
+      </div>
+
+      <div class="takeaways-grid">
+        <div class="takeaway-card">
+          <h3>1. Economic Edge Was Genuine</h3>
+          <p>The strategy generated positive gross trading profits in all three periods (<b>+$226,590</b> in Train, <b>+$16,082</b> in Validation, and <b>+$10,586</b> in Test). The statistical logic of spread mean-reversion successfully identified mispriced relative value.</p>
+        </div>
+
+        <div class="takeaway-card">
+          <h3>2. Execution Friction Erased the Alpha</h3>
+          <p>In the untouched 2023–2024 test period, trading friction ($18,199 total) consumed <b>171.9%</b> of gross trading profits. Because the strategy trades 39 times over two years with a 1-day execution lag, commissions, bid-ask slippage, and borrow costs consumed the entire edge.</p>
+        </div>
+
+        <div class="takeaway-card">
+          <h3>3. Razor-Thin Breakeven Margin</h3>
+          <p>In the test period, the break-even transaction cost is only <b>5.12 bps per side</b>. At standard institutional friction (10 bps/side), the strategy loses money. To succeed out-of-sample, execution must be twice as cheap as typical retail costs.</p>
+        </div>
+
+        <div class="takeaway-card">
+          <h3>4. Cointegration Decayed Out-of-Sample</h3>
+          <p>None of the 45 candidate pairs passed the strict Holm-Bonferroni correction in the training period; the 5 traded pairs were the lowest raw p-values. In 2023–2024, zero of the 5 pairs remained cointegrated, causing persistent non-reverting trends.</p>
+        </div>
+
+        <div class="takeaway-card">
+          <h3>5. Time Stops Protected Against Catastrophe</h3>
+          <p>The mandatory 30-day maximum holding limit successfully prevented unhedged catastrophic drawdowns when spread relationships broke down (such as COP / DVN during late 2022 and 2023 divergence).</p>
+        </div>
+
+        <div class="takeaway-card">
+          <h3>6. What I Would Try Next</h3>
+          <p>Future iterations would focus on: (a) <b>Dynamic Kalman Filter hedge ratios</b> to adapt to changing beta, (b) <b>Limit-order passive market making</b> to capture the spread instead of paying it, and (c) <b>Multivariate Johansen cointegration</b> across larger sector baskets.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. GLOSSARY -->
+    <section id="glossary" class="section">
+      <div class="sec-header">
+        <div class="sec-eyebrow">Technical Reference</div>
+        <h2 class="sec-title">Glossary</h2>
+        <p class="sec-desc">
+          Hover over highlighted terms throughout the site or review these plain-English definitions of key quantitative finance concepts.
+        </p>
+      </div>
+
+      <div class="glossary-grid">
+        <div class="glossary-card">
+          <div class="glossary-term">Spread</div>
+          <p class="glossary-def">The price gap between two cointegrated stocks, calculated as ln(Price A) − α − β × ln(Price B).</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Z-Score</div>
+          <p class="glossary-def">How rare today's spread divergence is, expressed in standard deviations from the historical training average.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Cointegration</div>
+          <p class="glossary-def">A statistical relationship where two non-stationary price series share a stationary linear combination that does not drift apart indefinitely.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Hedge Ratio (β)</div>
+          <p class="glossary-def">The regression slope parameter determining how many shares of Stock B to short per share of Stock A to neutralize market direction.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Half-Life</div>
+          <p class="glossary-def">The expected number of trading days required for a price gap dislocation to revert halfway back to its historical mean.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Basis Point (bps)</div>
+          <p class="glossary-def">One-hundredth of one percent (0.01% or 0.0001). 10 basis points equals 0.10%.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Long Spread</div>
+          <p class="glossary-def">A position betting the price gap will widen upward: buying Stock A and shorting Stock B.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Short Spread</div>
+          <p class="glossary-def">A position betting the price gap will revert downward: selling Stock A and buying Stock B.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Sharpe Ratio</div>
+          <p class="glossary-def">A measure of risk-adjusted return calculating annualized return divided by annualized return volatility.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Drawdown</div>
+          <p class="glossary-def">The peak-to-trough decline in total portfolio capital during an adverse market streak.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Slippage</div>
+          <p class="glossary-def">The execution penalty between the expected price when an order is decided and the actual fill price.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Borrow Cost</div>
+          <p class="glossary-def">The annual financing fee paid to brokers to borrow shares for short sales (modeled as 50 bps/year).</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Overfitting</div>
+          <p class="glossary-def">Fitting statistical parameters to historical noise rather than genuine recurring economic equilibrium.</p>
+        </div>
+        <div class="glossary-card">
+          <div class="glossary-term">Out-of-Sample</div>
+          <p class="glossary-def">A chronological time window (2023–2024) untouched during model development to test authentic predictive performance.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. ABOUT -->
+    <section id="about" class="section">
+      <div class="sec-header">
+        <div class="sec-eyebrow">Project & Author</div>
+        <h2 class="sec-title">About this project</h2>
+      </div>
+
+      <div class="about-card">
+        <div class="about-top">
+          <div>
+            <div class="author-name">Built by Aatif Shaikh</div>
+            <div style="font-size:var(--cds-font-size-caption); color:var(--color-fg-muted); margin-top:0.25rem;">
+              Quantitative Research & Statistical Arbitrage
+            </div>
+          </div>
+          <div class="author-links">
+            <a href="https://github.com/crys1ss/stat-arb-pairs-trading" target="_blank" rel="noopener noreferrer">GitHub Repository ↗</a>
+            <a href="https://www.linkedin.com/in/aatif-shaikh-PLACEHOLDER" target="_blank" rel="noopener noreferrer">LinkedIn Profile ↗</a>
+          </div>
+        </div>
+
+        <p style="margin:0; font-size:var(--cds-font-size-caption); color:var(--color-fg-muted); line-height:1.55;">
+          This project was engineered to answer a core quantitative question with production rigor: whether statistical arbitrage strategies survive after subtracting real market frictions, bid-ask spread crossing, borrow costs, and execution lag. The full pipeline, mathematical specifications, audit logs, and diagnostic failure analyses are open-source in the repository.
+        </p>
+
+        <div class="tech-stack-row">
+          <span style="font-weight:500; color:var(--color-fg);">Tech Stack:</span>
+          <span class="tech-pill">Python 3.10+</span>
+          <span class="tech-pill">pandas</span>
+          <span class="tech-pill">NumPy</span>
+          <span class="tech-pill">statsmodels</span>
+          <span class="tech-pill">D3.js v7</span>
+          <span class="tech-pill">Vanilla HTML5/CSS3</span>
+        </div>
+
+        <div style="font-size:var(--cds-font-size-caption); padding-top:0.5rem; border-top:1px solid var(--color-border-line);">
+          Read the complete 11-page empirical research breakdown:
+          <a href="https://github.com/crys1ss/stat-arb-pairs-trading/blob/main/reports/results/failure_analysis.md" target="_blank" rel="noopener noreferrer" style="font-weight:500;">
+            Failure Mode & Cointegration Decay Analysis Report ↗
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Mandatory Footer -->
+  <footer class="site-footer">
+    <div class="footer-disclaimer">
+      Historical backtest for research and education. Not investment advice. Not a live trading system.
+    </div>
+    <div class="footer-sub">
+      All numbers loaded dynamically from verified pipeline outputs · Built by Aatif Shaikh · Hosted on GitHub Pages
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/engine.js"></script>
+  <script src="js/illustrator.js"></script>
+  <script src="js/tour.js"></script>
+  <script src="js/playground.js"></script>
+  <script src="js/replay.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pairs Trading Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--font-anthropic-sans:Inter,system-ui,sans-serif;--font-anthropic-serif:"Source Serif 4",Georgia,serif;
+--color-fg:#1f1e1c;--color-fg-muted:#6b6862;--color-bg:#faf9f5;--color-panel:#ffffff;--color-border-line:#e4e1d8;--color-ok:#2f7d4f;--color-bad:#b3402e;
+--cds-chart-grid:#ece9e0;--cds-chart-axis:#b9b5aa;--cds-chart-reference:#8f8a7e;--cds-chart-status-critical:#b3402e;
+--cds-surface-popover:#ffffff;--cds-border:#e4e1d8;--cds-text-secondary:#6b6862;--cds-shadow-popover:0 6px 20px rgba(0,0,0,.12);
+--cds-font-size-body:15px;--cds-font-size-caption:12.5px;--cds-font-size-heading:17px;--cds-font-size-title:30px;--cds-font-weight-medium:500;
+--cds-gap-sm:.6rem;--cds-gap-md:1rem;--cds-pad-xs:.35rem;--cds-pad-sm:.6rem;--cds-pad-md:.75rem;--cds-pad-lg:1.1rem;--cds-radius:10px;
+--s1:#2563eb;--s2:#d97706;--s3:#059669;--s4:#db2777;--s5:#7c3aed}
+@media (prefers-color-scheme:dark){:root{--color-fg:#ecebe6;--color-fg-muted:#a39f95;--color-bg:#1a1917;--color-panel:#23221f;--color-border-line:#3a3833;--color-ok:#5cbf83;--color-bad:#e0705c;
+--cds-chart-grid:#33312c;--cds-chart-axis:#5a574f;--cds-chart-reference:#8a857a;--cds-chart-status-critical:#e0705c;--cds-surface-popover:#2b2a26;--cds-border:#3a3833;--cds-text-secondary:#a39f95;
+--s1:#60a5fa;--s2:#fbbf24;--s3:#34d399;--s4:#f472b6;--s5:#a78bfa}}
+body{margin:0;background:var(--color-bg);padding:24px 16px 48px}
+.dash-skeleton{background:var(--color-border-line);opacity:.4;border-radius:8px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+/* Tiny stand-in for the dashboard runtime: loads ./data/*.json and exposes dash.data / dash.onData / dash.colors */
+(function(){
+  const names=['daily','trades','pairs','periods','cost_curve','entry_exit'];
+  const store={};names.forEach(n=>store[n]={status:'loading',data:[]});
+  const subs=[];const fire=()=>subs.forEach(f=>{try{f()}catch(e){console.error(e)}});
+  window.dash={
+    data:n=>store[n]||{status:'missing',data:[]},
+    onData:f=>{subs.push(f);f()},
+    colors:['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)']
+  };
+  names.forEach(n=>fetch('../data/'+n+'.json').then(r=>{if(!r.ok)throw new Error(r.status);return r.json()})
+    .then(d=>{store[n]={status:'ok',data:d};fire()}).catch(()=>{store[n]={status:'error',data:[]};fire()}));
+  let t;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(fire,150)});
+})();
+</script>
+</head><body>
+<style>
+#rp{position:relative;display:grid;gap:var(--cds-gap-md);font-family:var(--font-anthropic-sans);color:var(--color-fg);font-size:var(--cds-font-size-body);max-width:80rem;margin-inline:auto;min-width:0}
+#rp *{box-sizing:border-box}
+#rp [hidden]{display:none!important}
+#rp .rp-title{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0;line-height:1.15}
+#rp .rp-take{margin:.4rem 0 0;color:var(--color-fg-muted);max-width:62rem;line-height:1.45;text-wrap:pretty}
+#rp .rp-card{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-lg);min-width:0}
+#rp .rp-card h2,#rp .rp-card h3{margin:0;font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium)}
+#rp .rp-note{margin:.2rem 0 0;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);line-height:1.4}
+#rp .rp-sec{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);margin:.6rem 0 0}
+#rp .rp-controls{display:flex;flex-wrap:wrap;gap:var(--cds-gap-sm);align-items:center}
+#rp .rp-tabs{display:inline-flex;border:1px solid var(--color-border-line);border-radius:var(--cds-radius);overflow:hidden}
+#rp button{font:inherit;color:var(--color-fg);background:var(--color-panel);border:0;padding:.45rem .85rem;cursor:pointer}
+#rp .rp-tabs button+button{border-left:1px solid var(--color-border-line)}
+#rp .rp-tabs button[aria-pressed=true]{background:var(--color-fg);color:var(--color-bg)}
+#rp .rp-btn{border:1px solid var(--color-border-line);border-radius:var(--cds-radius)}
+#rp .rp-btn:hover,#rp .rp-tabs button:hover{filter:brightness(.96)}
+#rp button:focus-visible,#rp select:focus-visible,#rp input:focus-visible{outline:2px solid var(--color-fg);outline-offset:2px}
+#rp select{font:inherit;color:var(--color-fg);background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:.4rem .5rem}
+#rp .rp-scrub{flex:1 1 14rem;min-width:9rem;display:flex;align-items:center;gap:var(--cds-gap-sm)}
+#rp .rp-scrub input{flex:1;min-width:0;accent-color:var(--color-fg)}
+#rp .rp-date{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-variant-numeric:tabular-nums;min-width:12.5rem;text-align:right}
+#rp .rp-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,11.5rem),1fr));gap:var(--cds-gap-sm)}
+#rp .rp-tile{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-md) var(--cds-pad-lg);min-width:0}
+#rp .rp-tile .k{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+#rp .rp-tile .v{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);font-variant-numeric:tabular-nums;line-height:1.2;margin:.1rem 0}
+#rp .rp-tile .s{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
+#rp .pos{color:var(--color-ok)} #rp .neg{color:var(--color-bad)}
+#rp .rp-results{display:flex;flex-wrap:wrap;gap:.3rem 1.4rem;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
+#rp .rp-results b{color:var(--color-fg);font-weight:500}
+#rp .rp-chart{min-height:0;position:relative}
+#rp .rp-chart svg{display:block;max-width:100%;overflow:visible}
+#rp #rp-eq{min-height:250px} #rp #rp-dd{min-height:96px}
+#rp .rp-zchart{min-height:132px}
+#rp .rp-grid{stroke:var(--cds-chart-grid);stroke-width:1}
+#rp .rp-zero{stroke:var(--cds-chart-reference);stroke-width:1}
+#rp .rp-entry{stroke:var(--cds-chart-reference);stroke-width:1;stroke-dasharray:4 3}
+#rp .rp-exit{stroke:var(--cds-chart-grid);stroke-width:1;stroke-dasharray:1 3}
+#rp .rp-tick{fill:var(--color-fg-muted);font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
+#rp .rp-ax path,#rp .rp-ax .tick line{stroke:var(--cds-chart-axis)}
+#rp .rp-ax text{fill:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+#rp .rp-line{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#rp .rp-ghost{fill:none;stroke-width:1.5;opacity:.18}
+#rp .rp-zline{fill:none;stroke:var(--color-fg);stroke-width:1.4;stroke-linejoin:round}
+#rp .rp-zghost{fill:none;stroke:var(--color-fg);stroke-width:1;opacity:.12}
+#rp .rp-endlab{fill:var(--color-fg);font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
+#rp .rp-cursor{stroke:var(--cds-chart-axis);stroke-width:1;stroke-dasharray:2 2}
+#rp .rp-shade{opacity:.2}
+#rp .rp-mark{fill:var(--color-bg);stroke-width:1.5}
+#rp .rp-lab{fill:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+#rp .rp-legend{display:flex;flex-wrap:wrap;gap:.3rem 1.1rem;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);margin:.5rem 0 0;align-items:center}
+#rp .rp-legend span{display:inline-flex;align-items:center;gap:.4rem}
+#rp .rp-sw{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;flex:none}
+#rp .rp-pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:var(--cds-gap-md)}
+#rp .rp-pair-top{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+#rp .rp-chip{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);border:1px solid var(--color-border-line);border-radius:99px;padding:0 .5rem}
+#rp .rp-state{margin-left:auto;font-size:var(--cds-font-size-caption);font-weight:500;border:1.5px solid var(--color-border-line);border-radius:99px;padding:0 .6rem;white-space:nowrap}
+#rp .rp-pair-sub{font-variant-numeric:tabular-nums}
+#rp .rp-two{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--cds-gap-md)}
+@media (max-width:860px){#rp .rp-two{grid-template-columns:minmax(0,1fr)}}
+#rp .rp-feed{list-style:none;margin:.6rem 0 0;padding:0;display:grid;gap:.45rem}
+#rp .rp-feed li{display:grid;grid-template-columns:5.2rem 6.3rem minmax(0,1fr);gap:.5rem;align-items:baseline;font-size:var(--cds-font-size-caption);line-height:1.35}
+#rp .rp-feed .d{color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
+#rp .rp-feed .t{border:1px solid var(--color-border-line);border-radius:99px;padding:0 .45rem;text-align:center;white-space:nowrap}
+#rp .rp-scroll{overflow:auto;max-height:20rem;margin-top:.6rem;border-top:1px solid var(--color-border-line)}
+#rp table{border-collapse:collapse;width:100%;font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
+#rp th{position:sticky;top:0;background:var(--color-panel);text-align:left;font-weight:500;color:var(--color-fg-muted);padding:.4rem .5rem;white-space:nowrap}
+#rp td{padding:.35rem .5rem;border-top:1px solid var(--color-border-line);white-space:nowrap}
+#rp td.n,#rp th.n{text-align:right}
+#rp .rp-empty{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);margin:.6rem 0 0}
+#rp .rp-heat{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));gap:4px;margin-top:.7rem;align-items:stretch}
+#rp .rp-heat .hh{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);align-self:center;padding:0 .3rem}
+#rp .rp-cell{border:1px solid var(--color-border-line);border-radius:6px;padding:.5rem .55rem;min-width:0;font-variant-numeric:tabular-nums;line-height:1.3}
+#rp .rp-cell b{display:block;font-weight:500;font-size:var(--cds-font-size-body)}
+#rp .rp-cell small{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+#rp .rp-cell.base{outline:2px solid var(--color-fg);outline-offset:-2px}
+#rp .rp-costs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));gap:var(--cds-gap-md);margin-top:.7rem}
+#rp .rp-costs figure{margin:0;min-width:0}
+#rp .rp-costs figcaption{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);margin-top:.15rem;line-height:1.35}
+#rp .rp-notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:.5rem 1.5rem;margin:.6rem 0 0;padding:0;list-style:none;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);line-height:1.5}
+#rp .rp-notes b{color:var(--color-fg);font-weight:500}
+#rp .rp-tip{position:absolute;z-index:5;pointer-events:none;background:var(--cds-surface-popover);border:1px solid var(--cds-border);border-radius:var(--cds-radius);box-shadow:var(--cds-shadow-popover);padding:var(--cds-pad-xs) var(--cds-pad-sm);font-size:var(--cds-font-size-caption);min-width:9rem}
+#rp .rp-tip-t{color:var(--cds-text-secondary);margin-bottom:.15rem}
+#rp .rp-tip-r{display:flex;align-items:center;gap:.4rem;justify-content:space-between;font-variant-numeric:tabular-nums}
+#rp .rp-tip-r span{margin-right:auto}
+#rp .rp-tip b{font-weight:600}
+#rp .rp-fail{display:none;align-items:center;justify-content:center;gap:.4rem;padding:2rem;color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+#rp .rp-fail i{width:.375rem;height:.375rem;border-radius:50%;background:var(--color-bad)}
+#rp.rp-failed .rp-fail{display:flex}
+#rp.rp-failed .rp-body{display:none}
+#rp .rp-foot{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);line-height:1.5}
+</style>
+
+<div id="rp">
+  <header>
+    <h1 class="rp-title">Pairs trading replay</h1>
+    <p class="rp-take" id="rp-take" data-source="periods">—</p>
+  </header>
+  <div class="rp-fail"><i></i>Failed to load</div>
+
+  <div class="rp-body" style="display:grid;gap:var(--cds-gap-md);min-width:0">
+    <section class="rp-controls" aria-label="Replay controls">
+      <div class="rp-tabs" role="group" aria-label="Period">
+        <button type="button" data-period="train" aria-pressed="false">Train 2018 to 2021</button>
+        <button type="button" data-period="validation" aria-pressed="false">Validation 2022</button>
+        <button type="button" data-period="test" aria-pressed="true">Test 2023 to 2024</button>
+      </div>
+      <button type="button" class="rp-btn" id="rp-play">Play</button>
+      <button type="button" class="rp-btn" id="rp-restart">Restart</button>
+      <select id="rp-speed" aria-label="Replay speed">
+        <option value="15">Slow</option>
+        <option value="50" selected>Normal</option>
+        <option value="150">Fast</option>
+      </select>
+      <div class="rp-scrub"><input type="range" id="rp-scrub" min="0" max="1" value="1" step="1" aria-label="Replay day"></div>
+      <div class="rp-date" id="rp-date" aria-live="off">—</div>
+    </section>
+
+    <section class="rp-tiles" aria-label="Replay figures" data-source="daily periods">
+      <div class="rp-tile"><div class="k">Net profit or loss so far</div><div class="v" id="t-net">—</div><div class="s" id="t-net-s">—</div></div>
+      <div class="rp-tile"><div class="k">Gross, before costs</div><div class="v" id="t-gross">—</div><div class="s" id="t-gross-s">—</div></div>
+      <div class="rp-tile"><div class="k">Costs paid so far</div><div class="v" id="t-cost">—</div><div class="s" id="t-cost-s">—</div></div>
+      <div class="rp-tile"><div class="k">Trades closed</div><div class="v" id="t-trades">—</div><div class="s" id="t-trades-s">—</div></div>
+    </section>
+    <div class="rp-results" id="rp-results" data-source="periods"></div>
+
+    <section class="rp-card" aria-labelledby="h-eq">
+      <h2 id="h-eq">Portfolio profit and loss</h2>
+      <p class="rp-note">Cumulative profit or loss against the $1,000,000 starting capital. The gap between the two lines is what trading costs took.</p>
+      <div class="rp-legend" id="rp-eq-legend"></div>
+      <div class="rp-chart dash-skeleton" id="rp-eq" data-source="daily"></div>
+      <div class="rp-chart dash-skeleton" id="rp-dd" data-source="daily"></div>
+    </section>
+
+    <h2 class="rp-sec" id="h-pairs">The five pairs, day by day</h2>
+    <p class="rp-note" style="margin-top:-.4rem">Each chart is the pair's spread as a z-score: how far the price gap sits from its 2018 to 2021 average, in standard deviations. All five share one vertical scale.</p>
+    <div class="rp-legend" id="rp-z-legend" style="margin-top:0"></div>
+    <div class="rp-pairs" id="rp-pairs" data-source="pairs"></div>
+
+    <div class="rp-two">
+      <section class="rp-card" aria-labelledby="h-feed">
+        <h2 id="h-feed">Latest events</h2>
+        <p class="rp-note">A signal is decided at a close. The trade fills at the next close.</p>
+        <ul class="rp-feed" id="rp-feed" data-source="trades"></ul>
+        <p class="rp-empty" id="rp-feed-empty" hidden>No events yet at this point of the replay.</p>
+      </section>
+      <section class="rp-card" aria-labelledby="h-tr">
+        <h2 id="h-tr">Closed trades</h2>
+        <p class="rp-note">Most recent first. Net is after commission, slippage and borrow costs.</p>
+        <div class="rp-scroll">
+          <table id="rp-trades" data-source="trades" data-row-key="trade_id">
+            <thead><tr>
+              <th data-field="pair">Pair</th><th data-field="direction">Side</th><th data-field="entry_date">Opened</th><th data-field="exit_date">Closed</th>
+              <th class="n" data-field="holding_days">Days</th><th class="n" data-field="gross_pnl">Gross</th><th class="n" data-field="costs">Costs</th><th class="n" data-field="net_pnl">Net</th><th data-field="exit_reason">Exit</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="rp-empty" id="rp-tr-empty" hidden>No closed trades yet at this point of the replay.</p>
+      </section>
+    </div>
+
+    <h2 class="rp-sec" id="h-sens">Would other settings change the story?</h2>
+    <div class="rp-two" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <section class="rp-card" aria-labelledby="h-heat">
+        <h3 id="h-heat">Entry and exit thresholds</h3>
+        <p class="rp-note" id="rp-heat-note">Net profit for each pair of thresholds, same period as selected above. Sensitivity, not selection.</p>
+        <div class="rp-heat" id="rp-heat" data-source="entry_exit"></div>
+      </section>
+      <section class="rp-card" aria-labelledby="h-cost">
+        <h3 id="h-cost">How much cost can each period absorb?</h3>
+        <p class="rp-note">Net profit as the cost per side per leg rises. Each chart has its own vertical scale. Sensitivity, not selection.</p>
+        <div class="rp-costs" id="rp-costs" data-source="cost_curve periods"></div>
+      </section>
+    </div>
+    <p class="rp-note">Execution lag 2 is not shown here: that run is being corrected.</p>
+
+    <section class="rp-card" aria-labelledby="h-how">
+      <h2 id="h-how">How to read this</h2>
+      <ul class="rp-notes">
+        <li><b>Spread.</b> For each pair, the log price of the first stock minus a frozen multiple of the second. The multiple was fitted on 2018 to 2021 and never refitted.</li>
+        <li><b>Entry and exit.</b> Open when the z-score reaches 2 in either direction, close when it comes back inside 0.5, or after 30 trading days.</li>
+        <li><b>Long and short spread.</b> Long spread buys the first stock and sells the second. Short spread does the reverse.</li>
+        <li><b>Costs.</b> 10 basis points per side on each leg, plus 50 basis points a year to borrow the shorted stock.</li>
+        <li><b>The pairs.</b> No pair passed the strict multiple-testing screen, so the five lowest p-values were used and are labelled exploratory.</li>
+        <li><b>Test period.</b> 2023 to 2024 was kept locked until the research choices were frozen.</li>
+      </ul>
+    </section>
+    <p class="rp-foot">A replay of historical backtest results from the saved v1.0 run, with a one day execution lag. It is research, not a live trading system and not investment advice.</p>
+  </div>
+  <div class="rp-tip" hidden></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const CAPITAL = 1000000, MINUS = '−';
+  const root = document.getElementById('rp');
+  const q = (s, el) => (el || root).querySelector(s);
+  const h = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+  const usd = (v, signed) => { const r = Math.round(v); return (r < 0 ? MINUS : (signed && r > 0 ? '+' : '')) + '$' + d3.format(',.0f')(Math.abs(r)); };
+  const usdC = (v) => (v < 0 ? MINUS : '') + '$' + (Math.abs(v) < 1000 ? d3.format(',.0f')(Math.abs(v)) : d3.format('.3~s')(Math.abs(v)));
+  const pct = (v, d) => (v < 0 ? MINUS : '') + d3.format('.' + (d == null ? 1 : d) + '%')(Math.abs(v));
+  const parse = d3.utcParse('%Y-%m-%d');
+  const fDate = d3.utcFormat('%a %-d %b %Y');
+  const fShort = d3.utcFormat('%-d %b %Y');
+  const REASON = { mean_revert: 'z back inside band', max_hold: '30 day limit', period_end: 'period ended' };
+  const NAMES = ['daily', 'trades', 'pairs', 'periods', 'cost_curve', 'entry_exit'];
+  const tip = q('.rp-tip');
+
+  const S = { period: 'test', i: 0, playing: false, speed: 50, acc: 0, last: 0, raf: 0 };
+  let D = null, charts = null, pairUI = null;
+
+  function tipShow(ev, title, rows) {
+    tip.replaceChildren(h('div', 'rp-tip-t', title));
+    rows.forEach((r) => {
+      const d = h('div', 'rp-tip-r');
+      if (r[2]) { const s = h('i', 'rp-sw'); s.style.background = r[2]; d.appendChild(s); }
+      d.appendChild(h('span', '', r[0])); d.appendChild(h('b', '', r[1])); tip.appendChild(d);
+    });
+    tip.hidden = false;
+    const rb = root.getBoundingClientRect();
+    let l = ev.clientX - rb.left + 14, t = ev.clientY - rb.top + 14;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    if (l + tw > rb.width - 4) l = ev.clientX - rb.left - tw - 14;
+    if (l < 4) l = 4;
+    if (t + th > rb.height - 4) t = ev.clientY - rb.top - th - 14;
+    if (t < 4) t = 4;
+    tip.style.left = l + 'px'; tip.style.top = t + 'px';
+  }
+  const tipHide = () => { tip.hidden = true; };
+
+  /* ---------- data ---------- */
+  function prep() {
+    const ds = {}; NAMES.forEach((n) => { ds[n] = dash.data(n).data; });
+    if (D && D.src === ds.daily) return;
+    const pairs = ds.pairs.map((p) => ({ pair: p.pair, a: p.leg_a, b: p.leg_b, sector: p.sector, beta: +p.beta, half: +p.half_life_days }));
+    const per = {};
+    ds.daily.forEach((r) => { (per[r.period] = per[r.period] || { rows: [] }).rows.push(r); });
+    Object.keys(per).forEach((key) => {
+      const P = per[key];
+      P.rows.sort((a, b) => +a.step - +b.step);
+      P.n = P.rows.length;
+      P.dates = P.rows.map((r) => parse(r.date));
+      P.idx = new Map(P.rows.map((r, i) => [r.date, i]));
+      P.net = P.rows.map((r) => +r.equity - CAPITAL);
+      P.gross = P.rows.map((r) => +r.gross_equity - CAPITAL);
+      P.dd = P.rows.map((r) => +r.drawdown);
+      P.open = P.rows.map((r) => +r.open_pairs);
+      P.z = {}; P.cum = {};
+      pairs.forEach((p) => { let c = 0; P.z[p.pair] = P.rows.map((r) => +r['z_' + p.pair]); P.cum[p.pair] = P.rows.map((r) => (c += +r['pnl_' + p.pair])); });
+      P.trades = ds.trades.filter((t) => t.period === key).map((t) => ({
+        id: t.trade_id, pair: t.pair, dir: +t.direction, s: P.idx.get(t.signal_date), e: P.idx.get(t.entry_date), xs: P.idx.get(t.exit_signal_date), x: P.idx.get(t.exit_date),
+        entry: t.entry_date, exit: t.exit_date, days: +t.holding_days, gross: +t.gross_pnl, costs: +t.costs, net: +t.net_pnl, reason: t.exit_reason,
+      })).filter((t) => t.s != null && t.e != null && t.x != null);
+      P.state = {}; P.held = {};
+      pairs.forEach((p) => {
+        const st = new Int8Array(P.n), hd = new Int16Array(P.n);
+        P.trades.filter((t) => t.pair === p.pair).forEach((t) => { for (let k = t.e; k < t.x; k++) { st[k] = t.dir; hd[k] = k - t.e + 1; } });
+        P.state[p.pair] = st; P.held[p.pair] = hd;
+      });
+      const ev = [];
+      P.trades.forEach((t) => {
+        ev.push({ i: t.s, k: 0, kind: 'Signal', t }); ev.push({ i: t.e, k: 1, kind: 'Opened', t });
+        if (t.xs != null) ev.push({ i: t.xs, k: 2, kind: 'Exit signal', t });
+        ev.push({ i: t.x, k: 3, kind: 'Closed', t });
+      });
+      ev.sort((a, b) => a.i - b.i || a.k - b.k);
+      P.events = ev;
+      P.closedBy = new Int16Array(P.n);
+      P.trades.forEach((t) => { for (let k = t.x; k < P.n; k++) P.closedBy[k]++; });
+      let zm = 0; pairs.forEach((p) => P.z[p.pair].forEach((v) => { if (Math.abs(v) > zm) zm = Math.abs(v); }));
+      P.zmax = Math.max(4, Math.ceil(zm / 2) * 2);
+    });
+    const periods = {}; ds.periods.forEach((r) => { periods[r.period] = r; });
+    D = { src: ds.daily, per, pairs, periods, costCurve: ds.cost_curve, grid: ds.entry_exit };
+  }
+  const P0 = () => D.per[S.period];
+  const rm = (w) => (w < 520 ? 62 : 112);
+
+  /* ---------- equity and drawdown ---------- */
+  function buildEquity(el, P, w) {
+    const h0 = 250, m = { t: 12, r: rm(w), b: 24, l: 52 };
+    const svg = d3.select(el).html('').append('svg').attr('width', '100%').attr('viewBox', '0 0 ' + w + ' ' + h0).attr('role', 'img')
+      .attr('aria-label', 'Cumulative net and gross profit and loss for the selected period');
+    const x = d3.scaleUtc([P.dates[0], P.dates[P.n - 1]], [m.l, w - m.r]);
+    const ext = d3.extent(P.net.concat(P.gross, [0]));
+    const y = d3.scaleLinear([ext[0], ext[1]], [h0 - m.b, m.t]).nice(5);
+    const ticks = y.ticks(5);
+    const g = svg.append('g');
+    g.selectAll('line.rp-grid').data(ticks).join('line').attr('class', 'rp-grid').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y).attr('y2', y);
+    g.selectAll('text.rp-tick').data(ticks).join('text').attr('class', 'rp-tick').attr('x', m.l - 8).attr('y', y).attr('dy', '0.32em').attr('text-anchor', 'end').text(usdC);
+    g.append('line').attr('class', 'rp-zero').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y(0)).attr('y2', y(0));
+    g.append('g').attr('class', 'rp-ax').attr('transform', 'translate(0,' + (h0 - m.b) + ')').call(d3.axisBottom(x).ticks(w < 520 ? 4 : 7).tickSizeOuter(0))
+      .attr('font-size', null).attr('font-family', null);
+    const C = dash.colors, line = d3.line().x((d, i) => x(P.dates[i])).y((d) => y(d));
+    g.append('path').attr('class', 'rp-ghost').attr('d', line(P.net)).style('stroke', C[0]);
+    g.append('path').attr('class', 'rp-ghost').attr('d', line(P.gross)).style('stroke', C[1]);
+    const pN = g.append('path').attr('class', 'rp-line').style('stroke', C[0]);
+    const pG = g.append('path').attr('class', 'rp-line').style('stroke', C[1]);
+    const cur = g.append('line').attr('class', 'rp-cursor').attr('y1', m.t).attr('y2', h0 - m.b);
+    const dN = g.append('circle').attr('r', 4).style('fill', C[0]).style('stroke', 'var(--color-panel)').style('stroke-width', 2);
+    const dG = g.append('circle').attr('r', 4).style('fill', C[1]).style('stroke', 'var(--color-panel)').style('stroke-width', 2);
+    const lN = g.append('text').attr('class', 'rp-endlab').attr('dy', '0.32em');
+    const lG = g.append('text').attr('class', 'rp-endlab').attr('dy', '0.32em');
+    const ov = svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', w - m.l - m.r).attr('height', h0 - m.t - m.b).style('fill', 'transparent');
+    const wide = w >= 520;
+    ov.on('pointermove', (ev) => {
+      const j = Math.max(0, Math.min(S.i, d3.bisectCenter(P.dates, x.invert(d3.pointer(ev, svg.node())[0]))));
+      tipShow(ev, fDate(P.dates[j]), [['Net', usd(P.net[j], true), C[0]], ['Gross', usd(P.gross[j], true), C[1]], ['Costs so far', usd(P.gross[j] - P.net[j])], ['Drawdown', pct(P.dd[j])], ['Open pairs', String(P.open[j])]]);
+    }).on('pointerleave', tipHide);
+    return {
+      x, m, update(i) {
+        pN.attr('d', line(P.net.slice(0, i + 1))); pG.attr('d', line(P.gross.slice(0, i + 1)));
+        const cx = x(P.dates[i]), yn = y(P.net[i]), yg = y(P.gross[i]);
+        cur.attr('x1', cx).attr('x2', cx); dN.attr('cx', cx).attr('cy', yn); dG.attr('cx', cx).attr('cy', yg);
+        let ln = yn, lg = yg; if (Math.abs(ln - lg) < 14) { const mid = (ln + lg) / 2, up = ln < lg; ln = mid + (up ? -7 : 7); lg = mid + (up ? 7 : -7); }
+        lN.attr('x', cx + 9).attr('y', ln).text((wide ? 'Net ' : '') + usdC(P.net[i]));
+        lG.attr('x', cx + 9).attr('y', lg).text((wide ? 'Gross ' : '') + usdC(P.gross[i]));
+      },
+    };
+  }
+  function buildDD(el, P, w) {
+    const h0 = 96, m = { t: 14, r: rm(w), b: 6, l: 52 };
+    const svg = d3.select(el).html('').append('svg').attr('width', '100%').attr('viewBox', '0 0 ' + w + ' ' + h0).attr('role', 'img').attr('aria-label', 'Drawdown from the previous equity peak');
+    const x = d3.scaleUtc([P.dates[0], P.dates[P.n - 1]], [m.l, w - m.r]);
+    const lo = Math.min(-0.005, d3.min(P.dd) * 1.15);
+    const y = d3.scaleLinear([lo, 0], [h0 - m.b, m.t]);
+    const g = svg.append('g'), C = dash.colors;
+    g.append('line').attr('class', 'rp-zero').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y(0)).attr('y2', y(0));
+    g.append('line').attr('class', 'rp-grid').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y(lo)).attr('y2', y(lo));
+    g.append('text').attr('class', 'rp-tick').attr('x', m.l - 8).attr('y', y(0)).attr('dy', '0.32em').attr('text-anchor', 'end').text('0%');
+    g.append('text').attr('class', 'rp-tick').attr('x', m.l - 8).attr('y', y(lo)).attr('dy', '0.32em').attr('text-anchor', 'end').text(pct(lo, 1));
+    g.append('text').attr('class', 'rp-lab').attr('x', m.l + 4).attr('y', m.t - 3).text('Drawdown from peak');
+    const area = d3.area().x((d, i) => x(P.dates[i])).y0(y(0)).y1((d) => y(d));
+    g.append('path').attr('class', 'rp-ghost').attr('d', d3.line().x((d, i) => x(P.dates[i])).y((d) => y(d))(P.dd)).style('stroke', C[4]);
+    const a = g.append('path').style('fill', C[4]).style('opacity', 0.35);
+    const lab = g.append('text').attr('class', 'rp-endlab').attr('dy', '0.32em');
+    return { update(i) { a.attr('d', area(P.dd.slice(0, i + 1))); lab.attr('x', x(P.dates[i]) + 9).attr('y', y(P.dd[i])).text(pct(P.dd[i])); } };
+  }
+
+  /* ---------- pair cards ---------- */
+  function ensureCards() {
+    if (pairUI) return;
+    pairUI = {};
+    const wrap = q('#rp-pairs');
+    D.pairs.forEach((p) => {
+      const card = h('article', 'rp-card'), top = h('div', 'rp-pair-top');
+      top.append(h('h3', '', p.a + ' / ' + p.b), h('span', 'rp-chip', p.sector));
+      const st = h('span', 'rp-state', 'Flat'); top.appendChild(st);
+      const sub = h('p', 'rp-note rp-pair-sub');
+      const ch = h('div', 'rp-chart rp-zchart dash-skeleton'); ch.setAttribute('data-source', 'daily trades');
+      card.append(top, sub, ch); wrap.appendChild(card);
+      pairUI[p.pair] = { st, sub, ch, p };
+    });
+  }
+  function buildZ(ui, P, w) {
+    const p = ui.p, h0 = 132, m = { t: 8, r: 8, b: 20, l: 32 }, Z = P.zmax, C = dash.colors;
+    const svg = d3.select(ui.ch).html('').append('svg').attr('width', '100%').attr('viewBox', '0 0 ' + w + ' ' + h0).attr('role', 'img')
+      .attr('aria-label', 'Spread z-score for ' + p.a + ' and ' + p.b + ' with entry and exit bands');
+    const x = d3.scaleUtc([P.dates[0], P.dates[P.n - 1]], [m.l, w - m.r]);
+    const y = d3.scaleLinear([-Z, Z], [h0 - m.b, m.t]);
+    const tks = d3.range(-Z, Z + 1, 2);
+    const g = svg.append('g'), z = P.z[p.pair];
+    g.selectAll('line.rp-grid').data(tks).join('line').attr('class', 'rp-grid').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y).attr('y2', y);
+    g.selectAll('text.rp-tick').data(tks).join('text').attr('class', 'rp-tick').attr('x', m.l - 6).attr('y', y).attr('dy', '0.32em').attr('text-anchor', 'end').text((v) => (v < 0 ? MINUS : '') + Math.abs(v));
+    [2, -2].forEach((v) => g.append('line').attr('class', 'rp-entry').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y(v)).attr('y2', y(v)));
+    [0.5, -0.5].forEach((v) => g.append('line').attr('class', 'rp-exit').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y(v)).attr('y2', y(v)));
+    g.append('line').attr('class', 'rp-zero').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y(0)).attr('y2', y(0));
+    g.append('g').attr('class', 'rp-ax').attr('transform', 'translate(0,' + (h0 - m.b) + ')')
+      .call(d3.axisBottom(x).ticks(w < 340 ? 3 : 5).tickFormat(d3.utcFormat(P.n > 600 ? '%Y' : '%b %y')).tickSizeOuter(0)).attr('font-size', null).attr('font-family', null);
+    const tr = P.trades.filter((t) => t.pair === p.pair);
+    const shades = g.selectAll('rect.rp-shade').data(tr).join('rect').attr('class', 'rp-shade').attr('y', m.t).attr('height', h0 - m.b - m.t)
+      .style('fill', (t) => (t.dir > 0 ? C[2] : C[3]));
+    const line = d3.line().x((d, i) => x(P.dates[i])).y((d) => y(d));
+    g.append('path').attr('class', 'rp-zghost').attr('d', line(z));
+    const path = g.append('path').attr('class', 'rp-zline');
+    const sym = d3.symbol(d3.symbolTriangle, 46)();
+    const sig = g.selectAll('path.rp-sig').data(tr).join('path').attr('class', 'rp-sig').attr('d', sym)
+      .attr('transform', (t) => 'translate(' + x(P.dates[t.s]) + ',' + y(z[t.s]) + ')' + (t.dir > 0 ? '' : ' rotate(180)'))
+      .style('fill', (t) => (t.dir > 0 ? C[2] : C[3])).style('stroke', 'var(--color-fg)').style('stroke-width', 1);
+    const xs = g.selectAll('circle.rp-xs').data(tr.filter((t) => t.xs != null)).join('circle').attr('class', 'rp-xs rp-mark').attr('r', 3.5)
+      .attr('cx', (t) => x(P.dates[t.xs])).attr('cy', (t) => y(z[t.xs])).style('stroke', 'var(--color-fg)');
+    const dot = g.append('circle').attr('r', 3.5).style('fill', 'var(--color-fg)').style('stroke', 'var(--color-panel)').style('stroke-width', 1.5);
+    svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', w - m.l - m.r).attr('height', h0 - m.t - m.b).style('fill', 'transparent')
+      .on('pointermove', (ev) => {
+        const j = Math.max(0, Math.min(S.i, d3.bisectCenter(P.dates, x.invert(d3.pointer(ev, svg.node())[0]))));
+        const s = P.state[p.pair][j];
+        tipShow(ev, fDate(P.dates[j]), [['Z-score', (z[j] < 0 ? MINUS : '') + d3.format('.2f')(Math.abs(z[j]))], ['Position', s > 0 ? 'Long spread' : s < 0 ? 'Short spread' : 'Flat'], ['Pair profit so far', usd(P.cum[p.pair][j], true)]]);
+      }).on('pointerleave', tipHide);
+    return {
+      update(i) {
+        path.attr('d', line(z.slice(0, i + 1)));
+        shades.attr('x', (t) => x(P.dates[t.e])).attr('width', (t) => Math.max(0, i < t.e ? 0 : x(P.dates[Math.min(i, t.x)]) - x(P.dates[t.e])));
+        sig.style('display', (t) => (t.s <= i ? null : 'none')); xs.style('display', (t) => (t.xs <= i ? null : 'none'));
+        dot.attr('cx', x(P.dates[i])).attr('cy', y(z[i]));
+      },
+    };
+  }
+
+  /* ---------- sensitivity ---------- */
+  function drawHeat() {
+    const el = q('#rp-heat'); el.replaceChildren();
+    const rows = D.grid.filter((r) => r.period === S.period);
+    const entries = [1.5, 2, 2.5], exits = [0, 0.5, 1];
+    const mx = d3.max(rows, (r) => Math.abs(+r.net_pnl)) || 1;
+    el.appendChild(h('div', 'hh', ''));
+    exits.forEach((e) => el.appendChild(h('div', 'hh', 'Exit inside ' + e)));
+    entries.forEach((en) => {
+      el.appendChild(h('div', 'hh', 'Enter at ' + en));
+      exits.forEach((ex) => {
+        const r = rows.find((v) => +v.entry_z === en && +v.exit_z === ex), c = h('div', 'rp-cell');
+        if (!r) { el.appendChild(c); return; }
+        const v = +r.net_pnl, k = Math.round(10 + 32 * Math.abs(v) / mx);
+        c.style.background = 'color-mix(in srgb, ' + (v >= 0 ? 'var(--color-ok)' : 'var(--cds-chart-status-critical)') + ' ' + k + '%, var(--color-panel))';
+        c.appendChild(h('b', '', usd(v, true))); c.appendChild(h('small', '', r.trades + ' trades' + (en === 2 && ex === 0.5 ? ' · baseline' : '')));
+        if (en === 2 && ex === 0.5) c.classList.add('base');
+        el.appendChild(c);
+      });
+    });
+    const pos = rows.filter((r) => +r.net_pnl > 0).length;
+    q('#rp-heat-note').textContent = D.periods[S.period].name + ': ' + pos + ' of ' + rows.length + ' threshold pairs end with a profit after costs. Sensitivity, not selection.';
+  }
+  function buildCosts() {
+    const el = q('#rp-costs'); el.replaceChildren();
+    const w = Math.max(200, Math.min(300, el.clientWidth || 260));
+    ['train', 'validation', 'test'].forEach((key) => {
+      const pts = D.costCurve.filter((r) => r.period === key).map((r) => ({ c: +r.cost_per_side_bps, v: +r.net_pnl })).sort((a, b) => a.c - b.c);
+      const be = +D.periods[key].breakeven_bps, fig = h('figure'), box = h('div', 'rp-chart');
+      const h0 = 120, m = { t: 12, r: 12, b: 20, l: 46 };
+      const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', '0 0 ' + w + ' ' + h0).attr('role', 'img').attr('aria-label', D.periods[key].name + ' net profit against trading cost');
+      const x = d3.scaleLinear([0, 20], [m.l, w - m.r]);
+      const ext = d3.extent(pts.map((p) => p.v).concat([0])), y = d3.scaleLinear(ext, [h0 - m.b, m.t]).nice(3);
+      const g = svg.append('g'), tk = y.ticks(3);
+      g.selectAll('line.rp-grid').data(tk).join('line').attr('class', 'rp-grid').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y).attr('y2', y);
+      g.selectAll('text.rp-tick').data(tk).join('text').attr('class', 'rp-tick').attr('x', m.l - 6).attr('y', y).attr('dy', '0.32em').attr('text-anchor', 'end').text(usdC);
+      g.append('line').attr('class', 'rp-zero').attr('x1', m.l).attr('x2', w - m.r).attr('y1', y(0)).attr('y2', y(0));
+      g.append('line').attr('class', 'rp-entry').attr('x1', x(10)).attr('x2', x(10)).attr('y1', m.t).attr('y2', h0 - m.b);
+      g.append('text').attr('class', 'rp-lab').attr('x', x(10) + 4).attr('y', m.t + 8).text('assumed 10');
+      g.append('g').attr('class', 'rp-ax').attr('transform', 'translate(0,' + (h0 - m.b) + ')').call(d3.axisBottom(x).tickValues([0, 5, 10, 20]).tickSizeOuter(0)).attr('font-size', null).attr('font-family', null);
+      g.append('path').attr('class', 'rp-line').style('stroke', dash.colors[0]).attr('d', d3.line().x((p) => x(p.c)).y((p) => y(p.v))(pts));
+      g.selectAll('circle.pt').data(pts).join('circle').attr('r', 3).attr('cx', (p) => x(p.c)).attr('cy', (p) => y(p.v)).style('fill', dash.colors[0]);
+      if (be <= 20) g.append('circle').attr('r', 5).attr('cx', x(be)).attr('cy', y(0)).style('fill', 'var(--color-bg)').style('stroke', 'var(--color-fg)').style('stroke-width', 2);
+      svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', w - m.l - m.r).attr('height', h0 - m.t - m.b).style('fill', 'transparent')
+        .on('pointermove', (ev) => { const p = pts[d3.bisector((v) => v.c).center(pts, x.invert(d3.pointer(ev, svg.node())[0]))]; tipShow(ev, p.c + ' bps per side', [['Net profit', usd(p.v, true)]]); }).on('pointerleave', tipHide);
+      const cap = h('figcaption', '', D.periods[key].name + ': breaks even at ' + d3.format('.1f')(be) + ' bps' + (be > 20 ? ' (off the chart)' : '') + '.');
+      fig.append(box, cap); el.appendChild(fig);
+    });
+  }
+
+  /* ---------- per frame ---------- */
+  function drawHead() {
+    const pr = D.periods[S.period], P = P0();
+    q('#rp-take').textContent = pr.name + ' (' + pr.span + '): ' + usd(+pr.net_pnl, true) + ' after costs. Before costs the strategy made ' + usd(+pr.gross_pnl, true) +
+      '; costs were ' + usd(+pr.costs) + ', which is ' + d3.format('.0%')(+pr.cost_drag) + ' of that gross figure.';
+    q('#rp-results').replaceChildren(...[['Sharpe ratio', d3.format('.2f')(+pr.sharpe).replace('-', MINUS)], ['Annualised return', pct(+pr.cagr, 2)], ['Worst drawdown', pct(-Math.abs(+pr.max_drawdown), 1)],
+      ['Win rate', pct(+pr.win_rate, 0)], ['Trading days', String(pr.days)]].map((r) => { const s = h('span', '', r[0] + ' '); s.appendChild(h('b', '', r[1])); return s; }));
+    const sc = q('#rp-scrub'); sc.max = P.n - 1;
+    q('#rp-eq-legend').replaceChildren(...[['Net, after costs', dash.colors[0]], ['Gross, before costs', dash.colors[1]]].map((r) => { const s = h('span'); const sw = h('i', 'rp-sw'); sw.style.background = r[1]; s.append(sw, document.createTextNode(r[0])); return s; }));
+    const zl = q('#rp-z-legend'); zl.replaceChildren();
+    [['Long spread held', dash.colors[2]], ['Short spread held', dash.colors[3]]].forEach((r) => { const s = h('span'), sw = h('i', 'rp-sw'); sw.style.background = r[1]; s.append(sw, document.createTextNode(r[0])); zl.appendChild(s); });
+    ['▲ entry signal (flipped for short)', '○ exit signal', 'Dashed lines: enter at ±2', 'Dotted lines: exit inside ±0.5'].forEach((t) => zl.appendChild(h('span', '', t)));
+  }
+  function tone(el, v) { el.className = 'v ' + (Math.round(v) > 0 ? 'pos' : Math.round(v) < 0 ? 'neg' : ''); }
+  function draw(i) {
+    const P = P0(), pr = D.periods[S.period];
+    q('#rp-scrub').value = i;
+    q('#rp-date').textContent = fDate(P.dates[i]) + ' · day ' + (i + 1) + ' of ' + P.n;
+    const tn = q('#t-net'); tn.textContent = usd(P.net[i], true); tone(tn, P.net[i]); q('#t-net-s').textContent = 'Period end ' + usd(+pr.net_pnl, true);
+    q('#t-gross').textContent = usd(P.gross[i], true); q('#t-gross-s').textContent = 'Period end ' + usd(+pr.gross_pnl, true);
+    q('#t-cost').textContent = usd(P.gross[i] - P.net[i]); q('#t-cost-s').textContent = 'Period end ' + usd(+pr.costs);
+    q('#t-trades').textContent = P.closedBy[i] + ' of ' + pr.trades; q('#t-trades-s').textContent = P.open[i] + (P.open[i] === 1 ? ' pair open now' : ' pairs open now');
+    charts.forEach((c) => c.update(i));
+    D.pairs.forEach((p) => {
+      const ui = pairUI[p.pair], s = P.state[p.pair][i], z = P.z[p.pair][i], c = dash.colors;
+      ui.st.textContent = s > 0 ? 'Long spread' : s < 0 ? 'Short spread' : 'Flat';
+      ui.st.style.borderColor = s > 0 ? c[2] : s < 0 ? c[3] : '';
+      ui.sub.textContent = 'Z-score ' + (z < 0 ? MINUS : '') + d3.format('.2f')(Math.abs(z)) + (s ? ' · day ' + P.held[p.pair][i] + ' of the position' : '') + ' · profit so far ' + usd(P.cum[p.pair][i], true) +
+        ' · hedge ratio ' + d3.format('.2f')(p.beta) + ' · half-life ' + d3.format('.0f')(p.half) + ' days';
+    });
+    const pn = (id) => D.pairs.find((p) => p.pair === id);
+    const ev = []; for (let k = P.events.length - 1; k >= 0 && ev.length < 8; k--) if (P.events[k].i <= i) ev.push(P.events[k]);
+    const feed = q('#rp-feed'); feed.replaceChildren();
+    ev.forEach((e) => {
+      const t = e.t, p = pn(t.pair), side = t.dir > 0 ? 'long' : 'short', li = h('li');
+      let txt = p.a + ' / ' + p.b + ' · ';
+      if (e.kind === 'Signal') txt += side + ' spread signal at z ' + (P.z[t.pair][t.s] < 0 ? MINUS : '') + d3.format('.2f')(Math.abs(P.z[t.pair][t.s]));
+      else if (e.kind === 'Opened') txt += side + ' spread position opened';
+      else if (e.kind === 'Exit signal') txt += 'exit signal (' + (REASON[t.reason] || t.reason) + ')';
+      else txt += 'closed, ' + usd(t.net, true) + ' after costs (' + (REASON[t.reason] || t.reason) + ')';
+      li.append(h('span', 'd', fShort(P.dates[e.i])), h('span', 't', e.kind), h('span', '', txt)); feed.appendChild(li);
+    });
+    q('#rp-feed-empty').hidden = ev.length > 0;
+    const closed = P.trades.filter((t) => t.x <= i).sort((a, b) => b.x - a.x || b.e - a.e);
+    q('#rp-tr-empty').hidden = closed.length > 0;
+    const tb = d3.select(q('#rp-trades tbody'));
+    tb.selectAll('tr').data(closed, (t) => t.id).join('tr').attr('data-key', (t) => t.id).each(function (t) {
+      const p = pn(t.pair), cells = [[p.a + ' / ' + p.b, ''], [t.dir > 0 ? 'Long spread' : 'Short spread', ''], [t.entry, ''], [t.exit, ''], [String(t.days), 'n'], [usd(t.gross, true), 'n'], [usd(t.costs), 'n'], [usd(t.net, true), 'n ' + (t.net >= 0 ? 'pos' : 'neg')], [REASON[t.reason] || t.reason, '']];
+      d3.select(this).selectAll('td').data(cells).join('td').attr('class', (c) => c[1]).text((c) => c[0]);
+    }).order();
+  }
+
+  function layout() {
+    const P = P0(); ensureCards();
+    const eq = q('#rp-eq'), w = Math.max(280, Math.floor(eq.clientWidth || 640));
+    charts = [buildEquity(eq, P, w), buildDD(q('#rp-dd'), P, w)];
+    [q('#rp-eq'), q('#rp-dd')].forEach((e) => e.classList.remove('dash-skeleton'));
+    D.pairs.forEach((p) => { const ui = pairUI[p.pair], zw = Math.max(240, Math.floor(ui.ch.clientWidth || 340)); charts.push(buildZ(ui, P, zw)); ui.ch.classList.remove('dash-skeleton'); });
+    buildCosts(); drawHeat(); drawHead();
+  }
+
+  /* ---------- playback and controls ---------- */
+  function setPlaying(on) {
+    S.playing = on; q('#rp-play').textContent = on ? 'Pause' : 'Play';
+    cancelAnimationFrame(S.raf);
+    if (on) { S.last = performance.now(); S.acc = 0; S.raf = requestAnimationFrame(tick); }
+  }
+  function tick(ts) {
+    if (!S.playing || !D) return;
+    S.acc += Math.min(100, ts - S.last) * S.speed / 1000; S.last = ts;
+    const adv = Math.floor(S.acc);
+    if (adv > 0) { S.acc -= adv; S.i = Math.min(P0().n - 1, S.i + adv); draw(S.i); tipHide(); if (S.i >= P0().n - 1) { setPlaying(false); return; } }
+    S.raf = requestAnimationFrame(tick);
+  }
+  function setPeriod(key) {
+    setPlaying(false); S.period = key; S.i = P0().n - 1;
+    root.querySelectorAll('.rp-tabs button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.period === key)));
+    layout(); draw(S.i);
+  }
+  root.querySelectorAll('.rp-tabs button').forEach((b) => b.addEventListener('click', () => { if (D) setPeriod(b.dataset.period); }));
+  q('#rp-play').addEventListener('click', () => { if (!D) return; if (S.playing) { setPlaying(false); return; } if (S.i >= P0().n - 1) { S.i = 0; draw(0); } setPlaying(true); });
+  q('#rp-restart').addEventListener('click', () => { if (!D) return; S.i = 0; draw(0); setPlaying(true); });
+  q('#rp-speed').addEventListener('change', (e) => { S.speed = +e.target.value; });
+  q('#rp-scrub').addEventListener('input', (e) => { if (!D) return; setPlaying(false); S.i = Math.max(0, Math.min(P0().n - 1, +e.target.value)); draw(S.i); });
+
+  dash.onData(() => {
+    const st = NAMES.map((n) => dash.data(n).status);
+    const bad = st.some((s) => s === 'error' || s === 'connect' || s === 'declined' || s === 'missing');
+    root.classList.toggle('rp-failed', bad);
+    if (bad) { setPlaying(false); return; }
+    if (st.some((s) => s !== 'ok')) return;
+    const first = !D; prep();
+    if (first) S.i = P0().n - 1;
+    layout(); draw(Math.min(S.i, P0().n - 1));
+  });
+})();
+</script>
+
+</body></html>
