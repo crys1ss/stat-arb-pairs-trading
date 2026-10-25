@@ -44,5 +44,6 @@
 - Reproducibility: `python scripts/run_pipeline.py --config configs/test_run.yaml --recompute` printed MATCH with 0 file changes; baseline outputs identical to the cent (train $212,323.62, val $4,903.47, test -$7,613.28); test lag 2 updated to +$7,126.53 (39 trades).
 
 ## Next
-- Execute GitHub push (`gh repo create` or manual remote add).
+- Configure GitHub Pages build source to GitHub Actions under repo Settings > Pages.
+- Add simulation link (`https://crys1ss.github.io/stat-arb-pairs-trading/`) to GitHub repository "About" website field.
 
