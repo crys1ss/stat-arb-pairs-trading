@@ -1,6 +1,6 @@
 # Statistical Arbitrage in Equity Markets: Cointegration-Based Pairs Trading with Out-of-Sample Validation
 
-**Author:** Aatif Shaikh ([@crys1ss](https://github.com/crys1ss))
+**Author:** Tanay Dekate ([@crys1ss](https://github.com/crys1ss))
 
 [![Unit Tests](https://img.shields.io/badge/pytest-75%20passed-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)]()
